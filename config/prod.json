@@ -1,0 +1,8 @@
+{
+    "logger": {
+        "name": "rasdaman-adapter",
+        "level": "warn",
+        "toFile": false,
+        "dirLogFile": null
+    }
+}

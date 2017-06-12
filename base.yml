@@ -1,0 +1,11 @@
+version: "2"
+services:
+  base:
+    build: .
+    ports:
+      - "3075:3075"
+    container_name: rasdaman-adapter
+    environment:
+      PORT: 3075
+      NODE_PATH: app/src
+

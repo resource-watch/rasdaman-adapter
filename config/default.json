@@ -1,0 +1,12 @@
+{
+     "logger": {
+        "name": "rasdaman-adapter-DEV",
+        "level": "debug",
+        "toFile": false,
+        "dirLogFile": null
+    },
+    "service": {
+        "name": "Rasdaman Adapter",
+        "port": 3075
+    }
+}
