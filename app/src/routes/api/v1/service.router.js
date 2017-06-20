@@ -1,5 +1,7 @@
 const Router = require('koa-router');
-
+const logger = require('logger');
+const ctRegisterMicroservice = require('ct-register-microservice-node');
+const RasdamanService = require('services/rasdaman.service');
 
 const router = new Router({
     prefix: '/rasdaman'
