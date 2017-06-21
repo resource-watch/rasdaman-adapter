@@ -1,6 +1,8 @@
 const logger = require('logger');
 const request = require('request');
 const requestPromise = require('request-promise');
+const xmlParser = require('xml2json');
+const jsonPath = require('jsonpath');
 
 class RasdamanService {
 
@@ -9,11 +11,14 @@ class RasdamanService {
         const reqUrl = urlDataset;
         logger.debug('Doing request to ', reqUrl);
         try {
-            const result = await requestPromise({
+            const req = await requestPromise({
                 method: 'GET',
                 uri: reqUrl
             });
-            return result;
+	    const result = xmlParser.toJson(req);
+	    logger.debug("Result:", result);
+	    const rasterName = jsonPath.query(result, '$.wcs:CoverageDescriptions.wcs:CoverageDescription.wcs:CoverageId');
+	    return result;
         } catch (err) {
             logger.error('Error obtaining fields', err);
             throw new Error('Error obtaining fields');

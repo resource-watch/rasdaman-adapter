@@ -44,9 +44,16 @@ class RasdamanRouter {
         }
         ctx.body = {};
     }
+
+    static async fields(ctx) {
+	logger.info('[RasdamanRouter] Getting fields for dataset');
+	const fields = await RasdamanService.getFields(ctx.body.request.body.dataset.connector_url);
+    }
 }
 
 router.get('/hi', RasdamanRouter.sayHi);
 router.post('/rest-datasets/rasdaman', RasdamanRouter.registerDataset);
+router.post('/fields/:dataset', RasdamanRouter.fields);
+
 
 module.exports = router;
