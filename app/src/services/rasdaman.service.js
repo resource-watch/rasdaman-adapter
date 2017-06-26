@@ -22,21 +22,53 @@ class RasdamanService {
 		JSON.parse(result),
 		"$['wcs:CoverageDescriptions']['wcs:CoverageDescription']['gml:id']"
 	    )[0];
-	    const boundedBy = jsonPath.query(
+	    const srs = jsonPath.query(
 		JSON.parse(result),
-		"$['wcs:CoverageDescriptions']['wcs:CoverageDescription']['boundedBy']"
-	    );
+		"$['wcs:CoverageDescriptions']['wcs:CoverageDescription']['boundedBy']['Envelope']['srsName']"
+	    )[0];
+	    const axisLabels = jsonPath.query(
+		JSON.parse(result),
+		"$['wcs:CoverageDescriptions']['wcs:CoverageDescription']['boundedBy']['Envelope']['axisLabels']"
+	    )[0];
+	    const uomLabels = jsonPath.query(
+		JSON.parse(result),
+		"$['wcs:CoverageDescriptions']['wcs:CoverageDescription']['boundedBy']['Envelope']['uomLabels']"
+	    )[0];
+	    const srsDimension = jsonPath.query(
+		JSON.parse(result),
+		"$['wcs:CoverageDescriptions']['wcs:CoverageDescription']['boundedBy']['Envelope']['srsDimension']"
+	    )[0];
+	    const lowerCorner = jsonPath.query(
+		JSON.parse(result),
+		"$['wcs:CoverageDescriptions']['wcs:CoverageDescription']['boundedBy']['Envelope']['lowerCorner']"
+	    )[0];
+	    const upperCorner = jsonPath.query(
+		JSON.parse(result),
+		"$['wcs:CoverageDescriptions']['wcs:CoverageDescription']['boundedBy']['Envelope']['upperCorner']"
+	    )[0];
+
 	    const rangeType = jsonPath.query(
 		JSON.parse(result),
-		"$['wcs:CoverageDescriptions']['wcs:CoverageDescription']['gmlcov:rangeType']"
+		"$['wcs:CoverageDescriptions']['wcs:CoverageDescription']['gmlcov:rangeType']['swe:DataRecord']['swe:field'][*]"
 	    );
-	    logger.debug("CoverageId:", coverageId);
-	    logger.debug("boundedBy:", boundedBy);
-	    logger.debug("rangeType:", rangeType);
+	    const fields = rangeType.reduce(function(acc, cur) {
+		acc[cur["name"]] = cur;
+		delete acc[cur["name"]]["name"];
+		return acc;
+	    }, {});
 	    return {
 		"coverageId": coverageId,
-		"axes": boundedBy,
-		"fields": rangeType
+		"srs": {
+		    "srsDimension": srsDimension,
+		    "srs": srs.replace("http://localhost:8080/def/", "")
+		},
+		"axisLabels": axisLabels,
+		"uomLabels": uomLabels,
+		"fields": fields,
+		"coverageBounds": {
+		    "upperCorner": upperCorner,
+		    "lowerCorner": lowerCorner
+		}
 	    };
         } catch (err) {
             logger.error('Error obtaining fields', err);
