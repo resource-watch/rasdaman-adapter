@@ -2,6 +2,7 @@ const Router = require('koa-router');
 const logger = require('logger');
 const ctRegisterMicroservice = require('ct-register-microservice-node');
 const RasdamanService = require('services/rasdaman.service');
+const WCPSSanitizer = require('sanitizers/wcps.sanitizer');
 const JSONAPIDeserializer = require('jsonapi-serializer').Deserializer;
 const router = new Router({
     prefix: '/rasdaman'
@@ -30,7 +31,29 @@ const deserializer = (obj) => (new Promise((resolve, reject) => {
     });
 }));
 
+const queryMiddleware = async(ctx, next) => {
+    const options = {
+        method: 'GET',
+        json: true,
+        resolveWithFullResponse: true,
+        simple: false
+    };
+    
+    if (!ctx.query.wcps) {
+        ctx.throw(400, 'query required');
+        return;
+    }
 
+    logger.debug("Validating WCPS query");
+    try {
+	WCPSSanitizer.sanitize(ctx.query.wcps);
+    } catch (err) {
+            logger.error('Error validating query', err);
+            throw new Error('Error validating query');
+    }  
+    await next();
+};
+    
 class RasdamanRouter {
     static async registerDataset(ctx) {
         logger.info('Registering dataset with data', ctx.request.body);
@@ -67,10 +90,15 @@ class RasdamanRouter {
 	const fields = await RasdamanService.getFields(ctx.request.body.dataset.connectorUrl);
 	ctx.body = fields;
     }
+
+    static async query(ctx) {
+	logger.info('[RasdamanRouter] Executing rasdaman WCPS query');
+	ctx.set('Content-type', 'application/json');
+    }
 }
 
 router.post('/rest-datasets/rasdaman', deserializeDataset, RasdamanRouter.registerDataset);
 router.post('/fields/:dataset', deserializeDataset, RasdamanRouter.fields);
-
+router.post('/query/:dataset', deserializeDataset, queryMiddleware, RasdamanRouter.query);
 
 module.exports = router;

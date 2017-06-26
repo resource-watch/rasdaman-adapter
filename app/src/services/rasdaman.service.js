@@ -42,23 +42,6 @@ class RasdamanService {
             throw new Error('Error obtaining fields');
         }
     }
-
-    // static executeQuery(urlDataset, query) {
-    //     logger.debug(`Doing query`);
-    //     const reqUrl = `${urlDataset.split('?')[0]}/query${query}&f=json`.replace('http:', 'https:');
-    //     logger.debug('Doing request to ', reqUrl);
-    //     try {
-    //         return request({
-    //             method: 'GET',
-    //             uri: reqUrl,
-    //             json: true
-    //         });
-    //     } catch (err) {
-    //         logger.error('Error doing query', err);
-    //         throw new Error('Error doing query');
-    //     }
-    // }
-
 }
 
 module.exports = RasdamanService;

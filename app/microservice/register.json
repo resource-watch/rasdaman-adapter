@@ -1,37 +1,88 @@
 {
     "name": "rasdaman-adapter",
     "endpoints": [
-	 {
-	    "path": "/v1/rest-datasets/rasdaman",
-	    "method": "POST",
-	    "redirect": {
-		"method": "POST",
-		"path": "/api/v1/rasdaman/rest-datasets/rasdaman"
-	    }
-	}, {
-	    "path": "/v1/fields/:dataset",
-	    "method": "GET",
-	    "redirect": {
-		"method": "POST",
-		"path": "/api/v1/rasdaman/fields/:dataset"
-	    },
-	    "filters": [
-		{
-		    "name": "dataset",
-		    "path": "/v1/dataset/:dataset",
-		    "method": "GET",
-		    "params": {
-			"dataset": "dataset"
-		    },
-		    "compare": {
-			"data" : {
-			    "attributes": {
-				"provider": "rasdaman"
-			    }
-			}
-		    }
-		}
-	    ]
-	}
+        {
+            "path": "/v1/rest-datasets/rasdaman",
+            "method": "POST",
+            "redirect": {
+                "method": "POST",
+                "path": "/api/v1/rasdaman/rest-datasets/rasdaman"
+            }
+        },
+        {
+            "path": "/v1/fields/:dataset",
+            "method": "GET",
+            "redirect": {
+                "method": "POST",
+                "path": "/api/v1/rasdaman/fields/:dataset"
+            },
+            "filters": [
+                {
+                    "name": "dataset",
+                    "path": "/v1/dataset/:dataset",
+                    "method": "GET",
+                    "params": {
+                        "dataset": "dataset"
+                    },
+                    "compare": {
+                        "data": {
+                            "attributes": {
+                                "provider": "rasdaman"
+                            }
+                        }
+                    }
+                }
+            ]
+        },{
+            "path": "/v1/query/:dataset",
+	    "binary": true,
+            "method": "POST",
+            "redirect": {
+                "method": "POST",
+                "path": "/api/v1/rasdaman/query/:dataset"
+            },
+            "filters": [
+                {
+                    "name": "dataset",
+                    "path": "/v1/dataset/:dataset",
+                    "method": "GET",
+                    "params": {
+                        "dataset": "dataset"
+                    },
+                    "compare": {
+                        "data": {
+                            "attributes": {
+                                "provider": "rasdaman"
+                            }
+                        }
+                    }
+                }
+            ]
+        },{
+            "path": "/v1/query/:dataset",
+            "method": "GET",
+            "binary": true,
+            "redirect": {
+                "method": "POST",
+                "path": "/api/v1/rasdaman/query/:dataset"
+            },
+            "filters": [
+                {
+                    "name": "dataset",
+                    "path": "/v1/dataset/:dataset",
+                    "method": "GET",
+                    "params": {
+                        "dataset": "dataset"
+                    },
+                    "compare": {
+                        "data": {
+                            "attributes": {
+                                "provider": "rasdaman"
+                            }
+                        }
+                    }
+                }
+            ]
+        }
     ]
 }
