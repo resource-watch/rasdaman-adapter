@@ -3,6 +3,7 @@ const request = require('request');
 const requestPromise = require('request-promise');
 const xmlParser = require('xml2json');
 const jsonPath = require('jsonpath');
+const url = require('url');
 
 class RasdamanService {
 
@@ -41,6 +42,12 @@ class RasdamanService {
             logger.error('Error obtaining fields', err);
             throw new Error('Error obtaining fields');
         }
+    }
+
+    static async getQuery(query, coverageUrl) {
+	logger.debug(`[RasdamanService] Performing query`, query, `to url`, coverageUrl);
+	const url_parts = url.parse(coverageUrl);
+	logger.debug(`URLPARTS`, url_parts);
     }
 }
 

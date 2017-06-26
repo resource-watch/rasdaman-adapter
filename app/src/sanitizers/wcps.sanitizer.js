@@ -45,7 +45,6 @@ class WCPSSanitizer {
 		return true;
 	    }
 	} catch (err) {
-	    logger.debug("CATCHED AN ERROR: ", err)
 	    throw new Error(err.message);
 	    return false;
 	}
