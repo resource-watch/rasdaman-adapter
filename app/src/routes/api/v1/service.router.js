@@ -48,8 +48,7 @@ const queryMiddleware = async(ctx, next) => {
     try {
 	WCPSSanitizer.sanitize(ctx.query.wcps);
     } catch (err) {
-            logger.error('Error validating query', err);
-            throw new Error('Error validating query');
+        logger.error('Error validating query', err);	
     }  
     await next();
 };
