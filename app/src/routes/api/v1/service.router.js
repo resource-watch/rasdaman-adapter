@@ -46,9 +46,10 @@ const queryMiddleware = async(ctx, next) => {
 
     logger.debug("Validating WCPS query");
     try {
-	WCPSSanitizer.sanitize(ctx.query.wcps);
+	await WCPSSanitizer.sanitize(ctx.query.wcps);
     } catch (err) {
-        logger.error('Error validating query', err);	
+        logger.error('Error validating query', err);
+	ctx.throw(400, 'Query not valid');
     }  
     await next();
 };
