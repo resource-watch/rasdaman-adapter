@@ -17,8 +17,26 @@ class RasdamanService {
             });
 	    const result = xmlParser.toJson(req);
 	    logger.debug("Result:", result);
-	    const rasterName = jsonPath.query(result, '$.wcs:CoverageDescriptions.wcs:CoverageDescription.wcs:CoverageId');
-	    return result;
+	    const coverageId = jsonPath.query(
+		JSON.parse(result),
+		"$['wcs:CoverageDescriptions']['wcs:CoverageDescription']['gml:id']"
+	    )[0];
+	    const boundedBy = jsonPath.query(
+		JSON.parse(result),
+		"$['wcs:CoverageDescriptions']['wcs:CoverageDescription']['boundedBy']"
+	    );
+	    const rangeType = jsonPath.query(
+		JSON.parse(result),
+		"$['wcs:CoverageDescriptions']['wcs:CoverageDescription']['gmlcov:rangeType']"
+	    );
+	    logger.debug("CoverageId:", coverageId);
+	    logger.debug("boundedBy:", boundedBy);
+	    logger.debug("rangeType:", rangeType);
+	    return {
+		"coverageId": coverageId,
+		"axes": boundedBy,
+		"fields": rangeType
+	    };
         } catch (err) {
             logger.error('Error obtaining fields', err);
             throw new Error('Error obtaining fields');
