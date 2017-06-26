@@ -1,11 +1,18 @@
 {
 	"name": "rasdaman-adapter",
 	"endpoints": [{
-		"path": "/v1/service/hi",
+		"path": "/v1/rasdaman/hi",
 		"method": "GET",
 		"redirect": {
 			"method": "GET",
-			"path": "/api/v1/service/hi"
+			"path": "/api/v1/rasdaman/hi"
+		}
+	}, {
+		"path": "/v1/rest-datasets/rasdaman",
+		"method": "POST",
+		"redirect": {
+			"method": "POST",
+			"path": "/api/v1/rasdaman/rest-datasets/rasdaman"
 		}
 	}]
 }
