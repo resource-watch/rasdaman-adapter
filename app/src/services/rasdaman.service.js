@@ -12,7 +12,7 @@ class RasdamanService {
         const reqUrl = urlDataset;
         logger.debug('Doing request to ', reqUrl);
         try {
-            const req = await requestPromise({
+	    const req = await requestPromise({
                 method: 'GET',
                 uri: reqUrl
             });
@@ -45,9 +45,42 @@ class RasdamanService {
     }
 
     static async getQuery(query, coverageUrl) {
-	logger.debug(`[RasdamanService] Performing query`, query, `to url`, coverageUrl);
+	logger.debug(`[RasdamanService] Performing query`, query, `to url`, coverageUrl);	
 	const url_parts = url.parse(coverageUrl);
-	logger.debug(`URLPARTS`, url_parts);
+	const host = coverageUrl.replace(url_parts.search, '');
+	logger.debug(`Rasdaman hostname: `, host)
+	const body = '<?xml version="1.0" encoding="UTF-8" ?>' +
+	      '<ProcessCoveragesRequest xmlns="http://www.opengis.net/wcps/1.0" service="WCPS" version="1.0.0">' +
+	      '<query><abstractSyntax>' +
+	      query +
+	      '</abstractSyntax></query>' +
+	      '</ProcessCoveragesRequest>'
+
+	logger.debug('BODY', body)
+	const req = await requestPromise({
+            method: 'POST',
+	    headers: {
+		'Content-Type': 'text/plain;charset=UTF-8',
+	    },
+            uri: host,
+	    body: body
+        });
+
+	const result = xmlParser.toJson(req);
+	logger.info(result);
+	
+	// protocol: 'http:',
+	// slashes: true,
+	// auth: null,
+	// host: '54.146.170.2:8080',
+	// port: '8080',
+	// hostname: '54.146.170.2',
+	// hash: null,
+	// search: '?&SERVICE=WCS&VERSION=2.0.1&REQUEST=DescribeCoverage&COVERAGEID=truemarble',
+	// query: '&SERVICE=WCS&VERSION=2.0.1&REQUEST=DescribeCoverage&COVERAGEID=truemarble',
+	// pathname: '/rasdaman/ows',
+	// path: '/rasdaman/ows?&SERVICE=WCS&VERSION=2.0.1&REQUEST=DescribeCoverage&COVERAGEID=truemarble',
+	// href: 'http://54.146.170.2:8080/rasdaman/ows?&SERVICE=WCS&VERSION=2.0.1&REQUEST=DescribeCoverage&COVERAGEID=truemarble' }
     }
 }
 
