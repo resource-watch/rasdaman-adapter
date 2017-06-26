@@ -35,28 +35,26 @@
             ]
         },{
             "path": "/v1/query/:dataset",
-            "method": "POST",
+            "method": "POST"3,
             "redirect": {
                 "method": "POST",
                 "path": "/api/v1/rasdaman/query/:dataset"
             },
-            "filters": [
-                {
-                    "name": "dataset",
-                    "path": "/v1/dataset/:dataset",
-                    "method": "GET",
-                    "params": {
-                        "dataset": "dataset"
-                    },
-                    "compare": {
-                        "data": {
-                            "attributes": {
-                                "provider": "rasdaman"
-                            }
+            "filters": [{
+                "name": "dataset",
+                "path": "/v1/dataset/:dataset",
+                "method": "GET",
+                "params": {
+                    "dataset": "dataset"
+                },
+                "compare": {
+                    "data": {
+                        "attributes": {
+                            "provider": "rasdaman"
                         }
                     }
                 }
-            ]
+            }]
         },{
             "path": "/v1/query/:dataset",
             "method": "GET",
@@ -64,23 +62,21 @@
                 "method": "POST",
                 "path": "/api/v1/rasdaman/query/:dataset"
             },
-            "filters": [
-                {
-                    "name": "dataset",
-                    "path": "/v1/dataset/:dataset",
-                    "method": "GET",
-                    "params": {
-                        "dataset": "dataset"
-                    },
-                    "compare": {
-                        "data": {
-                            "attributes": {
-                                "provider": "rasdaman"
-                            }
+            "filters": [{
+                "name": "dataset",
+                "path": "/v1/dataset/:dataset",
+                "method": "GET",
+                "params": {
+                    "dataset": "dataset"
+                },
+                "compare": {
+                    "data": {
+                        "attributes": {
+                            "provider": "rasdaman"
                         }
                     }
                 }
-            ]
+            }]
         }
     ]
 }
