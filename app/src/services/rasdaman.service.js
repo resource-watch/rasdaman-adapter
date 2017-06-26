@@ -60,27 +60,13 @@ class RasdamanService {
 	const req = await requestPromise({
             method: 'POST',
 	    headers: {
-		'Content-Type': 'text/plain;charset=UTF-8',
+		'Content-Type': 'text/xml'
 	    },
             uri: host,
 	    body: body
         });
-
-	const result = xmlParser.toJson(req);
-	logger.info(result);
-	
-	// protocol: 'http:',
-	// slashes: true,
-	// auth: null,
-	// host: '54.146.170.2:8080',
-	// port: '8080',
-	// hostname: '54.146.170.2',
-	// hash: null,
-	// search: '?&SERVICE=WCS&VERSION=2.0.1&REQUEST=DescribeCoverage&COVERAGEID=truemarble',
-	// query: '&SERVICE=WCS&VERSION=2.0.1&REQUEST=DescribeCoverage&COVERAGEID=truemarble',
-	// pathname: '/rasdaman/ows',
-	// path: '/rasdaman/ows?&SERVICE=WCS&VERSION=2.0.1&REQUEST=DescribeCoverage&COVERAGEID=truemarble',
-	// href: 'http://54.146.170.2:8080/rasdaman/ows?&SERVICE=WCS&VERSION=2.0.1&REQUEST=DescribeCoverage&COVERAGEID=truemarble' }
+	logger.debug("REQUEST:", req);
+	return req;
     }
 }
 
