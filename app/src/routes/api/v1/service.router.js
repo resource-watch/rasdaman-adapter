@@ -2,6 +2,7 @@ const Router = require('koa-router');
 const logger = require('logger');
 const ctRegisterMicroservice = require('ct-register-microservice-node');
 const RasdamanService = require('services/rasdaman.service');
+const WCPSSanitizer = require('sanitizers/wcps.sanitizer');
 const JSONAPIDeserializer = require('jsonapi-serializer').Deserializer;
 const router = new Router({
     prefix: '/rasdaman'
@@ -30,7 +31,34 @@ const deserializer = (obj) => (new Promise((resolve, reject) => {
     });
 }));
 
+const queryMiddleware = async(ctx, next) => {
+    const options = {
+        method: 'GET',
+        json: true,
+        resolveWithFullResponse: true,
+        simple: false
+    };
+    
+    if (!ctx.query.wcps && !ctx.request.body.wcps) {
+        ctx.throw(400, 'WCPS query required');
+        return;
+    }
 
+    if (ctx.query.wcps && !ctx.request.body.wcps) {
+	ctx.request.body.wcps = ctx.query.wcps;
+    }
+
+
+    logger.debug("Validating WCPS query");
+    try {
+	await WCPSSanitizer.sanitize(ctx.request.body.wcps);
+    } catch (err) {
+        logger.error('Error validating query', err);
+	ctx.throw(400, err.message);
+    }  
+    await next();
+};
+    
 class RasdamanRouter {
     static async registerDataset(ctx) {
         logger.info('Registering dataset with data', ctx.request.body);
@@ -67,10 +95,18 @@ class RasdamanRouter {
 	const fields = await RasdamanService.getFields(ctx.request.body.dataset.connectorUrl);
 	ctx.body = fields;
     }
+
+    static async query(ctx) {
+	logger.info('[RasdamanRouter] Executing rasdaman WCPS query');
+	// logger.info('CTX', ctx.request.body.dataset.connectorUrl);
+	const result = await RasdamanService.getQuery(ctx.request.body.wcps, ctx.request.body.dataset.connectorUrl);
+	ctx.body = result;
+    }
 }
 
 router.post('/rest-datasets/rasdaman', deserializeDataset, RasdamanRouter.registerDataset);
 router.post('/fields/:dataset', deserializeDataset, RasdamanRouter.fields);
-
+router.post('/query/:dataset', deserializeDataset, queryMiddleware, RasdamanRouter.query);
 
 module.exports = router;
+
