@@ -17,11 +17,10 @@ ErrorListener.prototype.syntaxError = function(rec, sym, line, col, msg, e) {
     this.errors.push(msg);
 };
 
-var errors = [];
-
 class WCPSSanitizer {
     static async sanitize(query) {
 	logger.info("[WCPSSanitizer] Sanitizing query ", query);
+	var errors = [];
 	const chars = new antlr4.InputStream(query);
 	const lexer = new WCPSLexer.WCPSLexer(chars);
 	const tokens = new antlr4.CommonTokenStream(lexer);
@@ -38,10 +37,10 @@ class WCPSSanitizer {
 	    const errors_dedup = [...new Set(errors)];
 	    // And launch an exception in case there are errors
 	    if (errors_dedup.length > 0) {
-		logger.info("Query not valid: ", errors_dedup)
+		logger.info("Query not valid: ", errors_dedup);
 		throw new QueryNotValid(errors_dedup);
 	    } else {
-		logger.info("Query OK")
+		logger.info("Query OK");
 		return true;
 	    }
 	} catch (err) {

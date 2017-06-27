@@ -80,15 +80,14 @@ class RasdamanService {
 	logger.debug(`[RasdamanService] Performing query`, query, `to url`, coverageUrl);	
 	const url_parts = url.parse(coverageUrl);
 	const host = coverageUrl.replace(url_parts.search, '');
-	logger.debug(`Rasdaman hostname: `, host)
+	logger.debug(`Rasdaman hostname: `, host);
 	const body = '<?xml version="1.0" encoding="UTF-8" ?>' +
-	      '<ProcessCoveragesRequest xmlns="http://www.opengis.net/wcps/1.0" service="WCPS" version="1.0.0">' +
-	      '<query><abstractSyntax>' +
-	      query +
-	      '</abstractSyntax></query>' +
-	      '</ProcessCoveragesRequest>'
-
-	logger.debug('BODY', body)
+		  '<ProcessCoveragesRequest xmlns="http://www.opengis.net/wcps/1.0" service="WCPS" version="1.0.0">' +
+		  '<query><abstractSyntax>' +
+		  query +
+		  '</abstractSyntax></query>' +
+		  '</ProcessCoveragesRequest>';
+	
 	const req = await requestPromise({
             method: 'POST',
 	    headers: {
