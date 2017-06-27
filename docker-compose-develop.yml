@@ -5,7 +5,7 @@ services:
       file: base.yml
       service: base
     ports:
-      - "35749:35729"
+      - "35759:35729"
     environment:
       CT_URL: http://mymachine:9000
       LOCAL_URL: http://mymachine:3075

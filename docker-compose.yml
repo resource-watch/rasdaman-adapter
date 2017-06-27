@@ -9,7 +9,8 @@ services:
     command: start
     dns: ${DNS_SERVER}
     restart: always
-    log_driver: "syslog"
-    log_opt:
-      syslog-address: ${SYSLOG_ADDRESS}
-      tag: rasdaman${STAGING}
+    logging:
+      driver: "syslog"
+      options:
+        syslog-address: ${SYSLOG_ADDRESS}
+        tag: rasdaman${STAGING}
