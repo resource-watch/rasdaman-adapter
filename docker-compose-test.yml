@@ -1,12 +1,10 @@
-version: "2"
-services:
-  test:
-    extends:
-      file: base.yml
-      service: base
-    container_name: rasdaman-adapter-test
-    environment:
-      NODE_ENV: test
-      CT_URL: http://mymachine:9000
-      API_VERSION: v1
-    command: test
+test:
+  extends:
+    file: base.yml
+    service: base
+  container_name: rasdaman-adapter-test
+  environment:
+    NODE_ENV: test
+    CT_URL: http://mymachine:9000
+    API_VERSION: v1
+  command: test
