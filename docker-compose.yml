@@ -1,16 +1,14 @@
-version: "2"
-services:
-  prod:
-    image: vizzuality/rasdaman-adapter:1.0.0${STAGING}
-    ports:
-      - "3075"
-    env_file:
-      - prod.env
-    command: start
-    dns: ${DNS_SERVER}
-    restart: always
-    logging:
-      driver: "syslog"
-      options:
-        syslog-address: ${SYSLOG_ADDRESS}
-        tag: rasdaman${STAGING}
+prod:
+  image: vizzuality/rasdaman-adapter:1.0.0${STAGING}
+  ports:
+    - "3075"
+  env_file:
+    - prod.env
+  command: start
+  dns: ${DNS_SERVER}
+  restart: always
+  logging:
+    driver: "syslog"
+    options:
+      syslog-address: ${SYSLOG_ADDRESS}
+      tag: rasdaman${STAGING}
