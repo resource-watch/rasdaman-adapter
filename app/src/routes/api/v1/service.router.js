@@ -39,14 +39,19 @@ const queryMiddleware = async(ctx, next) => {
         simple: false
     };
     
-    if (!ctx.query.wcps) {
+    if (!ctx.query.wcps && !ctx.request.body.wcps) {
         ctx.throw(400, 'WCPS query required');
         return;
     }
 
+    if (ctx.query.wcps && !ctx.request.body.wcps) {
+	ctx.request.body.wcps = ctx.query.wcps;
+    }
+
+
     logger.debug("Validating WCPS query");
     try {
-	await WCPSSanitizer.sanitize(ctx.query.wcps);
+	await WCPSSanitizer.sanitize(ctx.request.body.wcps);
     } catch (err) {
         logger.error('Error validating query', err);
 	ctx.throw(400, err.message);
@@ -94,7 +99,7 @@ class RasdamanRouter {
     static async query(ctx) {
 	logger.info('[RasdamanRouter] Executing rasdaman WCPS query');
 	// logger.info('CTX', ctx.request.body.dataset.connectorUrl);
-	const result = await RasdamanService.getQuery(ctx.query.wcps, ctx.request.body.dataset.connectorUrl);
+	const result = await RasdamanService.getQuery(ctx.request.body.wcps, ctx.request.body.dataset.connectorUrl);
 	ctx.body = result;
     }
 }
