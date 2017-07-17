@@ -1,6 +1,6 @@
 const logger = require('logger');
 const request = require('request');
-const requestPromise = require('request-promise');
+const rp = require('request-promise');
 const xmlParser = require('xml2json');
 const jsonPath = require('jsonpath');
 const url = require('url');
@@ -12,7 +12,7 @@ class RasdamanService {
         const reqUrl = urlDataset;
         logger.debug('Doing request to ', reqUrl);
         try {
-	    const req = await requestPromise({
+	    const req = await rp({
                 method: 'GET',
                 uri: reqUrl
             });
@@ -88,16 +88,16 @@ class RasdamanService {
 		  '</abstractSyntax></query>' +
 		  '</ProcessCoveragesRequest>';
 	
-	const req = await requestPromise({
+	const response = await rp({
             method: 'POST',
 	    headers: {
 		'Content-Type': 'text/xml'
 	    },
             uri: host,
-	    body: body
+	    body: body,
+	    resolveWithFullResponse: true
         });
-	logger.debug("REQUEST:", req);
-	return req;
+	return response;
     }
 }
 

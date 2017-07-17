@@ -100,6 +100,9 @@ class RasdamanRouter {
 	logger.info('[RasdamanRouter] Executing rasdaman WCPS query');
 	// logger.info('CTX', ctx.request.body.dataset.connectorUrl);
 	const result = await RasdamanService.getQuery(ctx.request.body.wcps, ctx.request.body.dataset.connectorUrl);
+	logger.debug("REQUEST STATUSCODE:", result.statusCode);
+	ctx.set('Content-type', result.headers['content-type']);
+	ctx.set('Content-disposition', 'attachment; filename=download');
 	ctx.body = result;
     }
 }
@@ -109,4 +112,3 @@ router.post('/fields/:dataset', deserializeDataset, RasdamanRouter.fields);
 router.post('/query/:dataset', deserializeDataset, queryMiddleware, RasdamanRouter.query);
 
 module.exports = router;
-
