@@ -4,6 +4,7 @@ const rp = require('request-promise');
 const xmlParser = require('xml2json');
 const jsonPath = require('jsonpath');
 const url = require('url');
+const stream = require('stream').Transform;
 
 class RasdamanService {
 
@@ -79,8 +80,8 @@ class RasdamanService {
     static async getQuery(query, coverageUrl) {
 	logger.debug(`[RasdamanService] Performing query`, query, `to url`, coverageUrl);	
 	const url_parts = url.parse(coverageUrl);
-	const host = coverageUrl.replace(url_parts.search, '');
-	logger.debug(`Rasdaman hostname: `, host);
+	const endpoint = coverageUrl.replace(url_parts.search, '');
+	logger.debug(`Rasdaman hostname: `, endpoint);
 	const body = '<?xml version="1.0" encoding="UTF-8" ?>' +
 		  '<ProcessCoveragesRequest xmlns="http://www.opengis.net/wcps/1.0" service="WCPS" version="1.0.0">' +
 		  '<query><abstractSyntax>' +
@@ -88,16 +89,18 @@ class RasdamanService {
 		  '</abstractSyntax></query>' +
 		  '</ProcessCoveragesRequest>';
 	
-	const response = await rp({
-            method: 'POST',
-	    headers: {
-		'Content-Type': 'text/xml'
-	    },
-            uri: host,
-	    body: body,
-	    resolveWithFullResponse: true
-        });
-	return response;
+	const req = request({
+	    method: "POST",
+	    url: endpoint,
+	    headers: [{
+		    name: 'content-type',
+		    value: 'application/xml'
+	    }],
+	    body: body
+	});
+	logger.info(`REQ: ${JSON.stringify(req)}`);
+
+	return req;
     }
 }
 

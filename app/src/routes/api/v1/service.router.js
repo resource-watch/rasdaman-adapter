@@ -4,6 +4,8 @@ const ctRegisterMicroservice = require('ct-register-microservice-node');
 const RasdamanService = require('services/rasdaman.service');
 const WCPSSanitizer = require('sanitizers/wcps.sanitizer');
 const JSONAPIDeserializer = require('jsonapi-serializer').Deserializer;
+const stream = require('stream').Transform;
+
 const router = new Router({
     prefix: '/rasdaman'
 });
@@ -97,13 +99,34 @@ class RasdamanRouter {
     }
 
     static async query(ctx) {
-	logger.info('[RasdamanRouter] Executing rasdaman WCPS query');
-	// logger.info('CTX', ctx.request.body.dataset.connectorUrl);
-	const result = await RasdamanService.getQuery(ctx.request.body.wcps, ctx.request.body.dataset.connectorUrl);
-	logger.debug("REQUEST STATUSCODE:", result.statusCode);
-	ctx.set('Content-type', result.headers['content-type']);
-	ctx.set('Content-disposition', 'attachment; filename=download');
-	ctx.body = result;
+	const res = await RasdamanService.getQuery(ctx.request.body.wcps, ctx.request.body.dataset.connectorUrl);
+	await new Promise((resolve, reject) => {
+	    logger.info('[RasdamanRouter] Executing rasdaman WCPS query');
+	    // logger.info('CTX', ctx.request.body.dataset.connectorUrl);
+	    logger.info(`request: ${JSON.stringify(res)}`);
+	    logger.debug(`Opening new datastream`);
+	    var data = new stream();
+	    res.on('response', function(response) {
+		if (response.statusCode == 200) {
+		    ctx.set('Content-disposition', `attachment; filename=${ctx.request.body.dataset.id}.tiff`);
+		    ctx.set('Content-type', response.headers['content-type']);
+		    logger.debug(`[RasdamanService] Request succesful`);
+		    logger.debug(`[RasdamanService] Content-type is ${response.headers['content-type']}`);
+		    logger.debug(`[RasdamanService] ${ctx.request.body.dataset.id}`);
+		}
+		
+		response.on('data', function(dataChunk) {
+		    data.push(dataChunk);
+		});
+		
+		response.on('end', function() {
+		    
+		    logger.debug("Saving the file");
+		    ctx.body = data.read();
+		    resolve();
+		});
+	    });	    
+	});
     }
 }
 
