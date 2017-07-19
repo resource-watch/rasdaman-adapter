@@ -5,6 +5,7 @@ const RasdamanService = require('services/rasdaman.service');
 const WCPSSanitizer = require('sanitizers/wcps.sanitizer');
 const JSONAPIDeserializer = require('jsonapi-serializer').Deserializer;
 const stream = require('stream').Transform;
+const mime = require('mime-types');
 
 const router = new Router({
     prefix: '/rasdaman'
@@ -108,7 +109,7 @@ class RasdamanRouter {
 	    var data = new stream();
 	    res.on('response', function(response) {
 		if (response.statusCode == 200) {
-		    ctx.set('Content-disposition', `attachment; filename=${ctx.request.body.dataset.id}.tiff`);
+		    ctx.set('Content-disposition', `attachment; filename=${ctx.request.body.dataset.id}.${mime.extension(response.headers['content-type'])}`);
 		    ctx.set('Content-type', response.headers['content-type']);
 		    logger.debug(`[RasdamanService] Request succesful`);
 		    logger.debug(`[RasdamanService] Content-type is ${response.headers['content-type']}`);
