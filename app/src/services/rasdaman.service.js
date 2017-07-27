@@ -80,7 +80,10 @@ class RasdamanService {
     static async getQuery(query, coverageUrl) {
 	logger.debug(`[RasdamanService] Performing query`, query, `to url`, coverageUrl);	
 	const url_parts = url.parse(coverageUrl);
-	const endpoint = coverageUrl.replace(url_parts.search, '');
+	logger.debug(url_parts);
+
+	const endpoint = coverageUrl.replace(url_parts.search, '');	
+	logger.debug(endpoint);
 	logger.debug(`Rasdaman hostname: `, endpoint);
 	const body = '<?xml version="1.0" encoding="UTF-8" ?>' +
 		  '<ProcessCoveragesRequest xmlns="http://www.opengis.net/wcps/1.0" service="WCPS" version="1.0.0">' +
@@ -100,7 +103,28 @@ class RasdamanService {
 	});
 	logger.info(`REQ: ${JSON.stringify(req)}`);
 
-	return req;
+	const raster = await new Promise((resolve, reject) => {
+	    var data = new stream();
+	    let result;
+	    
+	    req.on('response', function(response) {
+		if (response.statusCode != 200) {
+		    {} // Errors go here
+		}
+		response.on('data', function(dataChunk) {
+		    data.push(dataChunk);
+		});
+
+		response.on('end', function() {
+		    result = {
+			"data": data.read(),
+			"content-type": response.headers['content-type']
+		    };
+		    resolve(result);
+		});
+	    });
+	});
+	return raster;
     }
 }
 
