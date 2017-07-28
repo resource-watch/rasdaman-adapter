@@ -1,0 +1,153 @@
+swagger: '2.0'
+info:
+  description: Dataset microservice specs for RW & GFW APIs
+  version: 1.0.0
+  title: Dataset
+  contact:
+    email: enrique.cornejo@vizzuality.com
+host: api.resourcewatch.org
+basePath: /v1
+tags:
+  - name: dataset
+    description: Dataset endpoint
+schemes:
+  - https
+consumes:
+  - application/json
+produces:
+  - application/json
+
+paths:
+  /dataset:
+    get:
+      responses:
+        '200':
+          description: OK
+          schema:
+            $ref: '#/definitions/DatasetListResponse'
+    post:
+      parameters:
+        - in: body
+          schema:
+            $ref: '#/definitions/Dataset'
+          name: dataset
+      responses:
+        '200':
+          description: OK
+          schema:
+            $ref: '#/definitions/DatasetResponse'
+  /dataset/{id}:
+    get:
+      parameters:
+        - in: path
+          name: id
+          type: string
+          required: true
+          description: Uuid for the dataset
+      responses:
+        '200':
+          description: OK
+          schema:
+            $ref: '#/definitions/DatasetResponse'
+definitions:
+  Dataset:
+    type: object
+    properties:
+      connectorType:
+        type: string
+        enum:
+          - rest
+      provider:
+        type: string
+        enum:
+          - rasdaman
+      connectorUrl:
+        type: string
+      name:
+        type: string
+      application:
+        type: array
+        items:
+          type: string
+          enum:
+            - rw
+            - gfw
+  DatasetObject:
+    type: object
+    properties:
+      id:
+        type: string
+      type:
+        type: string
+        enum:
+          - dataset
+      attributes:
+        type: object
+        properties:
+          name:
+            type: string
+          slug:
+            type: string
+          subtitle:
+            type: string
+          application:
+            type: array
+            items:
+              type: string
+              enum:
+                - rw
+                - gfw
+          dataPath:
+            type: string
+          attributesPath:
+            type: string
+          connectorType:
+            type: string
+          provider:
+            type: string
+          userId:
+            type: string
+          connectorUrl:
+            type: string
+          tableName:
+            type: string
+          legend:
+            type: object
+          clonedHost:
+            type: object
+          errorMessage:
+            type: string
+          createdAt:
+            type: string
+          updatedAt:
+            type: string
+  DatasetResponse:
+    type: object
+    properties:
+      data:
+        $ref: '#/definitions/DatasetObject'
+  DatasetListResponse:
+    type: object
+    properties:
+      data:
+        type: array
+        items:
+          $ref: '#/definitions/DatasetObject'
+responses:
+  400Error:
+    description: invalid request
+    schema:
+      type: object
+      properties:
+        message:
+          type: string
+  404ErrorNotFound:
+    description: dataset not found
+    schema:
+      type: object
+      properties:
+        message:
+          type: string
+externalDocs:
+  description: Human-readable documentation for the API.
+  url: 'https://resource-watch.github.io/doc-api/'

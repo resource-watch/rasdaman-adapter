@@ -19,37 +19,40 @@ class RasdamanService {
             });
 	    const result = xmlParser.toJson(req);
 	    logger.debug("Result:", result);
+
+	    const result_json = JSON.parse(result);
+
 	    const coverageId = jsonPath.query(
-		JSON.parse(result),
+		result_json,
 		"$['wcs:CoverageDescriptions']['wcs:CoverageDescription']['gml:id']"
 	    )[0];
 	    const srs = jsonPath.query(
-		JSON.parse(result),
+		result_json,
 		"$['wcs:CoverageDescriptions']['wcs:CoverageDescription']['boundedBy']['Envelope']['srsName']"
 	    )[0];
 	    const axisLabels = jsonPath.query(
-		JSON.parse(result),
+		result_json,
 		"$['wcs:CoverageDescriptions']['wcs:CoverageDescription']['boundedBy']['Envelope']['axisLabels']"
 	    )[0];
 	    const uomLabels = jsonPath.query(
-		JSON.parse(result),
+		result_json,
 		"$['wcs:CoverageDescriptions']['wcs:CoverageDescription']['boundedBy']['Envelope']['uomLabels']"
 	    )[0];
 	    const srsDimension = jsonPath.query(
-		JSON.parse(result),
+		result_json,
 		"$['wcs:CoverageDescriptions']['wcs:CoverageDescription']['boundedBy']['Envelope']['srsDimension']"
 	    )[0];
 	    const lowerCorner = jsonPath.query(
-		JSON.parse(result),
+		result_json,
 		"$['wcs:CoverageDescriptions']['wcs:CoverageDescription']['boundedBy']['Envelope']['lowerCorner']"
 	    )[0];
 	    const upperCorner = jsonPath.query(
-		JSON.parse(result),
+		result_json,
 		"$['wcs:CoverageDescriptions']['wcs:CoverageDescription']['boundedBy']['Envelope']['upperCorner']"
 	    )[0];
 
 	    const rangeType = jsonPath.query(
-		JSON.parse(result),
+		result_json,
 		"$['wcs:CoverageDescriptions']['wcs:CoverageDescription']['gmlcov:rangeType']['swe:DataRecord']['swe:field'][*]"
 	    );
 	    const fields = rangeType.reduce(function(acc, cur) {
