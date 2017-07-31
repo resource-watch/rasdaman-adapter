@@ -4,6 +4,9 @@ const ctRegisterMicroservice = require('ct-register-microservice-node');
 const RasdamanService = require('services/rasdaman.service');
 const WCPSSanitizer = require('sanitizers/wcps.sanitizer');
 const JSONAPIDeserializer = require('jsonapi-serializer').Deserializer;
+const stream = require('stream').Transform;
+const mime = require('mime-types');
+
 const router = new Router({
     prefix: '/rasdaman'
 });
@@ -97,10 +100,14 @@ class RasdamanRouter {
     }
 
     static async query(ctx) {
-	logger.info('[RasdamanRouter] Executing rasdaman WCPS query');
-	// logger.info('CTX', ctx.request.body.dataset.connectorUrl);
-	const result = await RasdamanService.getQuery(ctx.request.body.wcps, ctx.request.body.dataset.connectorUrl);
-	ctx.body = result;
+	const res = await RasdamanService.getQuery(ctx.request.body.wcps, ctx.request.body.dataset.connectorUrl);
+	logger.info(`RESULT: `, res);
+
+	ctx.set('Content-disposition', `attachment; filename=${ctx.request.body.dataset.id}.${mime.extension(res['content-type'])}`);
+	ctx.set('Content-type', res['content-type']);
+
+	ctx.body = res["data"];
+
     }
 }
 
@@ -109,4 +116,3 @@ router.post('/fields/:dataset', deserializeDataset, RasdamanRouter.fields);
 router.post('/query/:dataset', deserializeDataset, queryMiddleware, RasdamanRouter.query);
 
 module.exports = router;
-
