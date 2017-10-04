@@ -4,23 +4,12 @@ const ctRegisterMicroservice = require('ct-register-microservice-node');
 const RasdamanService = require('services/rasdaman.service');
 const WCPSSanitizer = require('sanitizers/wcps.sanitizer');
 const JSONAPIDeserializer = require('jsonapi-serializer').Deserializer;
-const stream = require('stream').Transform;
 const mime = require('mime-types');
 
 const router = new Router({
     prefix: '/rasdaman'
 });
 
-const deserializeDataset = async(ctx, next) => {
-    if (ctx.request.body.dataset && ctx.request.body.dataset.data) {
-        ctx.request.body.dataset = await deserializer(ctx.request.body.dataset);
-    } else {
-        if (ctx.request.body.dataset && ctx.request.body.dataset.table_name) {
-            ctx.request.body.dataset.tableName = ctx.request.body.dataset.table_name;
-        }
-    }
-    await next();
-};
 
 const deserializer = (obj) => (new Promise((resolve, reject) => {
     new JSONAPIDeserializer({
@@ -34,39 +23,42 @@ const deserializer = (obj) => (new Promise((resolve, reject) => {
     });
 }));
 
+const deserializeDataset = async(ctx, next) => {
+    if (ctx.request.body.dataset && ctx.request.body.dataset.data) {
+        ctx.request.body.dataset = await deserializer(ctx.request.body.dataset);
+    } else {
+        if (ctx.request.body.dataset && ctx.request.body.dataset.table_name) {
+            ctx.request.body.dataset.tableName = ctx.request.body.dataset.table_name;
+        }
+    }
+    await next();
+};
+
 const queryMiddleware = async(ctx, next) => {
-    const options = {
-        method: 'GET',
-        json: true,
-        resolveWithFullResponse: true,
-        simple: false
-    };
-    
     if (!ctx.query.wcps && !ctx.request.body.wcps) {
         ctx.throw(400, 'WCPS query required');
         return;
     }
 
     if (ctx.query.wcps && !ctx.request.body.wcps) {
-	ctx.request.body.wcps = ctx.query.wcps;
+        ctx.request.body.wcps = ctx.query.wcps;
     }
-
-
-    logger.debug("Validating WCPS query");
+    logger.debug('Validating WCPS query');
     try {
-	await WCPSSanitizer.sanitize(ctx.request.body.wcps);
+        await WCPSSanitizer.sanitize(ctx.request.body.wcps);
     } catch (err) {
         logger.error('Error validating query', err);
-	ctx.throw(400, err.message);
-    }  
+        ctx.throw(400, err.message);
+    }
     await next();
 };
-    
+
 class RasdamanRouter {
+
     static async registerDataset(ctx) {
         logger.info('Registering dataset with data', ctx.request.body);
         try {
-            await RasdamanService.getFields(ctx.request.body.connector.connector_url);
+            await RasdamanService.registerDataset(ctx.request.body.connector);
             await ctRegisterMicroservice.requestToMicroservice({
                 method: 'PATCH',
                 uri: `/dataset/${ctx.request.body.connector.id}`,
@@ -78,6 +70,7 @@ class RasdamanRouter {
                 json: true
             });
         } catch (e) {
+            logger.error(e);
             await ctRegisterMicroservice.requestToMicroservice({
                 method: 'PATCH',
                 uri: `/dataset/${ctx.request.body.connector.id}`,
@@ -94,21 +87,19 @@ class RasdamanRouter {
     }
 
     static async fields(ctx) {
-	logger.info('[RasdamanRouter] Getting fields for dataset');
-	const fields = await RasdamanService.getFields(ctx.request.body.dataset.connectorUrl);
-	ctx.body = fields;
+        logger.info('[RasdamanRouter] Getting fields for dataset');
+        const fields = await RasdamanService.getFields(ctx.request.body.dataset.connectorUrl);
+        ctx.body = fields;
     }
 
     static async query(ctx) {
-	const res = await RasdamanService.getQuery(ctx.request.body.wcps, ctx.request.body.dataset.connectorUrl);
-	logger.info(`RESULT: `, res);
-
-	ctx.set('Content-disposition', `attachment; filename=${ctx.request.body.dataset.id}.${mime.extension(res['content-type'])}`);
-	ctx.set('Content-type', res['content-type']);
-
-	ctx.body = res["data"];
-
+        const res = await RasdamanService.getQuery(ctx.request.body.wcps, ctx.request.body.dataset.connectorUrl);
+        logger.info(`RESULT: `, res);
+        ctx.set('Content-disposition', `attachment; filename=${ctx.request.body.dataset.id}.${mime.extension(res['content-type'])}`);
+        ctx.set('Content-type', res['content-type']);
+        ctx.body = res.data;
     }
+
 }
 
 router.post('/rest-datasets/rasdaman', deserializeDataset, RasdamanRouter.registerDataset);
