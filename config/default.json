@@ -8,5 +8,9 @@
     "service": {
         "name": "Rasdaman Adapter",
         "port": 3075
+    },
+    "rasdaman": {
+        "uri": "http://54.146.170.2:8080",
+        "importer": "http://54.146.170.2:3000/api/v1/importer"
     }
 }

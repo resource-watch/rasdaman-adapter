@@ -5,6 +5,7 @@ const xmlParser = require('xml2json');
 const jsonPath = require('jsonpath');
 const url = require('url');
 const Stream = require('stream').Transform;
+const config = require('config');
 
 
 class RasdamanService {
@@ -39,7 +40,7 @@ class RasdamanService {
                 coverageId,
                 srs: {
                     srsDimension,
-                    srs: srs.replace('http://localhost:8080/def/', '')
+                    srs: srs.replace(`${config.get('rasdaman.uri')}/def/`, '')
                 },
                 axisLabels,
                 uomLabels,
@@ -107,8 +108,7 @@ class RasdamanService {
 
     static registerDataset(connector) {
         const options = {
-            uri: 'http://mymachine:3010/api/v1/importer/import',
-            // uri: 'http://54.146.170.2:3000/api/v1/importer/import',
+            uri: `${config.get('rasdaman.importer')}/import`,
             method: 'POST',
             body: {
                 tableName: connector.tableName,
