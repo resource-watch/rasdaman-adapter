@@ -70,10 +70,10 @@ class RasdamanService {
         const req = request({
             method: 'POST',
             url: endpoint,
-            headers: [{
-                name: 'content-type',
-                value: 'application/xml'
-            }],
+            headers: {
+                'content-type': 'application/xml'
+            },
+            json: false,
             body
         });
         logger.info(`REQ: ${JSON.stringify(req)}`);
