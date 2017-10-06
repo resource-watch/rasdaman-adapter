@@ -88,12 +88,12 @@ class RasdamanRouter {
 
     static async fields(ctx) {
         logger.info('[RasdamanRouter] Getting fields for dataset');
-        const fields = await RasdamanService.getFields(ctx.request.body.dataset.connectorUrl);
+        const fields = await RasdamanService.getFields(ctx.request.body.dataset.tableName);
         ctx.body = fields;
     }
 
     static async query(ctx) {
-        const res = await RasdamanService.getQuery(ctx.request.body.wcps, ctx.request.body.dataset.connectorUrl);
+        const res = await RasdamanService.getQuery(ctx.request.body.wcps, ctx.request.body.dataset.tableName);
         logger.info(`RESULT: `, res);
         ctx.set('Content-disposition', `attachment; filename=${ctx.request.body.dataset.id}.${mime.extension(res['content-type'])}`);
         ctx.set('Content-type', res['content-type']);
