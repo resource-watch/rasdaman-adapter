@@ -40,7 +40,7 @@ class RasdamanService {
                 coverageId,
                 srs: {
                     srsDimension,
-                    srs: srs.replace(`${config.get('rasdaman.uri')}/def/`, '')
+                    srs: srs.replace('http://localhost:8080/def/', '')
                 },
                 axisLabels,
                 uomLabels,
