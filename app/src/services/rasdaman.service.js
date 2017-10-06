@@ -12,7 +12,7 @@ class RasdamanService {
 
     static async getFields(tableName) {
         logger.debug(`Obtaining fields of ${tableName}`);
-        const reqUrl = `${config.get('rasdaman.uri')}/rasdaman/ows/?&SERVICE=WCS&VERSION=2.0.1&REQUEST=DescribeCoverage&COVERAGEID=${tableName}`;
+        const reqUrl = `${config.get('rasdaman.uri')}/rasdaman/ows?&SERVICE=WCS&VERSION=2.0.1&REQUEST=DescribeCoverage&COVERAGEID=${tableName}`;
         logger.debug('Doing request to ', reqUrl);
         try {
             const req = await rp({
@@ -58,7 +58,7 @@ class RasdamanService {
 
     static async getQuery(query, tableName) {
         logger.debug(`[RasdamanService] Performing query`, query, `to url`, tableName);
-        const endpoint = `${config.get('rasdaman.uri')}/rasdaman/ows/?&SERVICE=WCS&VERSION=2.0.1&REQUEST=DescribeCoverage&COVERAGEID=${tableName}`;
+        const endpoint = `${config.get('rasdaman.uri')}/rasdaman/ows?&SERVICE=WCS&VERSION=2.0.1&REQUEST=DescribeCoverage&COVERAGEID=${tableName}`;
         logger.debug(`Rasdaman hostname: `, endpoint);
         const body = `<?xml version="1.0" encoding="UTF-8" ?>
             <ProcessCoveragesRequest xmlns="http://www.opengis.net/wcps/1.0" service="WCPS" version="1.0.0">
