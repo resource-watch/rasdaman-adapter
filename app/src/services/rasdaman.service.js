@@ -84,7 +84,7 @@ class RasdamanService {
 
             req.on('response', (response) => {
                 if (response.statusCode !== 200) {
-                    reject(result);
+                    reject(response);
                 }
                 response.on('data', (dataChunk) => {
                     data.push(dataChunk);
