@@ -53,11 +53,30 @@ class RasdamanService {
         }
     }
 
+    static getWhere(where) {
+        logger.debug(where);
+        return '';
+    }
+
     static formQuery(tableName, fn, bbox, where) {
         logger.debug('FORM QUERY');
         let query = `for cov in (${tableName}) return `;
+        const whereQuery = RasdamanService.getWhere(where);
         if (fn.function !== 'st_histogram') {
-            query += `encode(${fn.function}(cov.${fn.arguments[0]}), \"CSV\")`;
+            if (bbox && bbox.length > 0) {
+                if (whereQuery) {
+                    query += `encode(${fn.function}((cov.${fn.arguments[0]})[${whereQuery}, Lat :"" (${bbox[0]}:${bbox[1]}), Long :"" (${bbox[2]}:${bbox[3]}) ]), \"CSV\")`;
+                } else {
+                    query += `encode(${fn.function}((cov.${fn.arguments[0]})[Lat :"" (${bbox[0]}:${bbox[1]}), Long :"" (${bbox[2]}:${bbox[3]}) ]), \"CSV\")`;
+                }
+            } else {
+                if (whereQuery) {
+                    query += `encode(${fn.function}((cov.${fn.arguments[0]})[${whereQuery}]), \"CSV\")`;
+                } else {
+                    query += `encode(${fn.function}(cov.${fn.arguments[0]}), \"CSV\")`;
+                }
+            }
+        // st_histogram
         } else {
             query += `encode(${fn.function}(cov.${fn.arguments[1]}), \"CSV\")`;
         }
