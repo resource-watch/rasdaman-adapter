@@ -1,10 +1,8 @@
+
 const logger = require('logger');
-const request = require('request');
 const rp = require('request-promise');
 const xmlParser = require('xml2json');
 const jsonPath = require('jsonpath');
-const url = require('url');
-const Stream = require('stream').Transform;
 const config = require('config');
 
 
@@ -23,31 +21,30 @@ class RasdamanService {
             logger.debug('Result: ', result);
 
             const resultJson = JSON.parse(result);
-            const coverageId = jsonPath.query(resultJson, '$[\'wcs:CoverageDescriptions\'][\'wcs:CoverageDescription\'][\'gml:id\']')[0];
             const srs = jsonPath.query(resultJson, '$[\'wcs:CoverageDescriptions\'][\'wcs:CoverageDescription\'][\'boundedBy\'][\'Envelope\'][\'srsName\']')[0];
-            const axisLabels = jsonPath.query(resultJson, '$[\'wcs:CoverageDescriptions\'][\'wcs:CoverageDescription\'][\'boundedBy\'][\'Envelope\'][\'axisLabels\']')[0];
-            const uomLabels = jsonPath.query(resultJson, '$[\'wcs:CoverageDescriptions\'][\'wcs:CoverageDescription\'][\'boundedBy\'][\'Envelope\'][\'uomLabels\']')[0];
+            const fields = jsonPath.query(resultJson, '$[\'wcs:CoverageDescriptions\'][\'wcs:CoverageDescription\'][\'boundedBy\'][\'Envelope\'][\'axisLabels\']')[0].split(' ');
             const srsDimension = jsonPath.query(resultJson, '$[\'wcs:CoverageDescriptions\'][\'wcs:CoverageDescription\'][\'boundedBy\'][\'Envelope\'][\'srsDimension\']')[0];
             const lowerCorner = jsonPath.query(resultJson, '$[\'wcs:CoverageDescriptions\'][\'wcs:CoverageDescription\'][\'boundedBy\'][\'Envelope\'][\'lowerCorner\']')[0];
             const upperCorner = jsonPath.query(resultJson, '$[\'wcs:CoverageDescriptions\'][\'wcs:CoverageDescription\'][\'boundedBy\'][\'Envelope\'][\'upperCorner\']')[0];
             const rangeType = jsonPath.query(resultJson, '$[\'wcs:CoverageDescriptions\'][\'wcs:CoverageDescription\'][\'gmlcov:rangeType\'][\'swe:DataRecord\'][\'swe:field\'][*]');
-            const fields = rangeType.reduce((acc, cur) => {
+            const bands = rangeType.reduce((acc, cur) => {
                 acc[cur.name] = cur;
                 delete acc[cur.name].name;
                 return acc;
             }, {});
             return {
-                coverageId,
-                srs: {
-                    srsDimension,
-                    srs: srs.replace('http://localhost:8080/def/', '')
-                },
-                axisLabels,
-                uomLabels,
+                tableName,
+                bands,
                 fields,
-                coverageBounds: {
-                    upperCorner,
-                    lowerCorner
+                meta: {
+                    srs: {
+                        srsDimension,
+                        srs: srs.replace('http://localhost:8080/def/', '')
+                    },
+                    coverageBounds: {
+                        upperCorner,
+                        lowerCorner
+                    }
                 }
             };
         } catch (err) {
@@ -56,50 +53,50 @@ class RasdamanService {
         }
     }
 
-    static async getQuery(query, tableName) {
-        logger.debug(`[RasdamanService] Performing query`, query, `to url`, tableName);
+    static formQuery(tableName, fn, bbox, where) {
+        logger.debug('FORM QUERY');
+        let query = `for cov in (${tableName}) return `;
+        if (fn.function !== 'st_histogram') {
+            query += `encode(${fn.function}(cov.${fn.arguments[0]}), \"CSV\")`;
+        } else {
+            query += `encode(${fn.function}(cov.${fn.arguments[1]}), \"CSV\")`;
+        }
+        logger.debug(query);
+        return query;
+    }
+
+    static async getQuery(tableName, functions, bbox, where) {
+        logger.debug(`[RasdamanService] Performing query`);
         const endpoint = `${config.get('rasdaman.uri')}/rasdaman/ows`;
-        logger.debug(`Rasdaman hostname: `, endpoint);
-        const body = '<?xml version="1.0" encoding="UTF-8" ?>' +
-        		  '<ProcessCoveragesRequest xmlns="http://www.opengis.net/wcps/1.0" service="WCPS" version="1.0.0">' +
-        		  '<query><abstractSyntax>' +
-        		  query +
-        		  '</abstractSyntax></query>' +
-        		  '</ProcessCoveragesRequest>';
+        const fns = [];
+        const reqs = [];
+        for (let i = 0; i < functions.length; i++) {
+            const query = RasdamanService.formQuery(tableName, functions[i], bbox, where);
+            const body = '<?xml version="1.0" encoding="UTF-8" ?>' +
+            		  '<ProcessCoveragesRequest xmlns="http://www.opengis.net/wcps/1.0" service="WCPS" version="1.0.0">' +
+            		  '<query><abstractSyntax>' +
+            		  query +
+            		  '</abstractSyntax></query>' +
+            		  '</ProcessCoveragesRequest>';
 
-        const req = request({
-            method: 'POST',
-            url: endpoint,
-            headers: {
-                'content-type': 'application/xml'
-            },
-            json: false,
-            body
-        });
-        logger.info(`REQ: ${JSON.stringify(req)}`);
-
-        const raster = await new Promise((resolve, reject) => {
-            const data = new Stream();
-            let result;
-
-            req.on('response', (response) => {
-                if (response.statusCode !== 200) {
-                    reject(response);
-                }
-                response.on('data', (dataChunk) => {
-                    data.push(dataChunk);
-                });
-
-                response.on('end', () => {
-                    result = {
-                        data: data.read(),
-                        'content-type': response.headers['content-type']
-                    };
-                    resolve(result);
-                });
-            });
-        });
-        return raster;
+            fns.push(functions[i].function);
+            reqs.push(await rp({
+                method: 'POST',
+                url: endpoint,
+                headers: {
+                    'content-type': 'application/xml'
+                },
+                json: false,
+                body
+            }));
+        }
+        // Provisional?
+        const responses = (await Promise.all(reqs));
+        const response = {};
+        for (let j = 0; j < fns.length; j++) {
+            response[fns[j]] = responses[j];
+        }
+        return { data: [response] };
     }
 
     static registerDataset(connector) {
