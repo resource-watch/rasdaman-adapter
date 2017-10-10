@@ -53,15 +53,46 @@ class RasdamanService {
         }
     }
 
-    static getWhere(where) {
-        logger.debug(where);
-        return '';
+    static getOperator(operator) {
+        return `${operator.right.value}`;
     }
 
-    static formQuery(tableName, fn, bbox, where) {
+    static getStrQuery(whereObj) {
+        let strQuery = '';
+        Object.keys(whereObj).forEach(key => {
+            const el = whereObj[key];
+            if (el.length === 1) {
+                strQuery += `${key}(${el[0]})`;
+            } else {
+                el.sort();
+                strQuery += `${key}(${el[0]}:${el[1]})`;
+            }
+            strQuery += ', ';
+        });
+        return strQuery !== '' ? strQuery.substr(0, [strQuery.length - 2]) : undefined;
+    }
+
+    static getWhere(where) {
+        const whereObj = {};
+        if (where) {
+            while (where.type === 'conditional') {
+                if (whereObj[where.right.left.value] === undefined) {
+                    whereObj[where.right.left.value] = [];
+                }
+                whereObj[where.right.left.value].push(RasdamanService.getOperator(where.right));
+                where = where.left;
+            }
+            if (whereObj[where.left.value] === undefined) {
+                whereObj[where.left.value] = [];
+            }
+            whereObj[where.left.value].push(RasdamanService.getOperator(where));
+        }
+        return RasdamanService.getStrQuery(whereObj);
+    }
+
+    static formQuery(tableName, fn, bbox, whereQuery) {
         logger.debug('FORM QUERY');
         let query = `for cov in (${tableName}) return `;
-        const whereQuery = RasdamanService.getWhere(where);
         if (fn.function !== 'st_histogram') {
             if (bbox && bbox.length > 0) {
                 if (whereQuery) {
@@ -89,8 +120,9 @@ class RasdamanService {
         const endpoint = `${config.get('rasdaman.uri')}/rasdaman/ows`;
         const fns = [];
         const reqs = [];
+        const whereQuery = RasdamanService.getWhere(where);
         for (let i = 0; i < functions.length; i++) {
-            const query = RasdamanService.formQuery(tableName, functions[i], bbox, where);
+            const query = RasdamanService.formQuery(tableName, functions[i], bbox, whereQuery);
             const body = '<?xml version="1.0" encoding="UTF-8" ?>' +
             		  '<ProcessCoveragesRequest xmlns="http://www.opengis.net/wcps/1.0" service="WCPS" version="1.0.0">' +
             		  '<query><abstractSyntax>' +
