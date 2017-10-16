@@ -117,16 +117,25 @@ class RasdamanService {
         return query;
     }
 
-    static async formHistogramQuery(tableName, fn, bbox, whereQuery) {
+    static async formHistogramQuery(tableName, fn, bbox, whereQuery, nbins) {
 	logger.debug('Forming histogram query.');
 	logger.debug(`function: ${JSON.stringify(fn)}`);
 	logger.debug('Checking number of bands.');
 	const fields = await RasdamanService.getFields(tableName);
 	const bands = Object.keys(fields['bands']);
-	// We'll store the multiband status in this var:
+	logger.debug(`bands: ${bands}`);
 	const multiband = bands.length && bands.length > 1 ? true : false;
-	// Obtaining data bounds for histogram
+	const incumbent_band = fn.arguments[0];
+	logger.debug(`multiband: ${multiband}`);
+	logger.debug(`incumbent_band: ${incumbent_band}`);
+	// We'll store the multiband status in this var:
+	const band_subset_expr = multiband ? `.${incumbent_band}` : '';
 
+	logger.debug(`band_subset_expr: ${band_subset_expr}`);
+	
+
+	// Obtaining data bounds for histogram - min and max of data in the geo range provided
+	
 	// for cov in (test_rasdaman_1b) return encode(min(cov), "CSV")
 	// const query_min = `for cov in (${tableName}) return encode(min(cov), "CSV")`;
 	// const query_max = `for cov in (${tableName}) return encode(max(cov), "CSV")`;
