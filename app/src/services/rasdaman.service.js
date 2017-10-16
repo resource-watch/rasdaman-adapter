@@ -18,7 +18,6 @@ class RasdamanService {
                 uri: reqUrl
             });
             const result = xmlParser.toJson(req);
-            logger.debug('Result: ', result);
 
             const resultJson = JSON.parse(result);
             const srs = jsonPath.query(resultJson, '$[\'wcs:CoverageDescriptions\'][\'wcs:CoverageDescription\'][\'boundedBy\'][\'Envelope\'][\'srsName\']')[0];
@@ -73,6 +72,10 @@ class RasdamanService {
     }
 
     static getWhere(where) {
+	logger.debug(`where: ${JSON.stringify(where)}`);
+	if( typeof where === 'string' ) {
+	    return where;
+	}
         const whereObj = {};
         if (where) {
             while (where.type === 'conditional') {
@@ -90,58 +93,84 @@ class RasdamanService {
         return RasdamanService.getStrQuery(whereObj);
     }
 
-    static formQuery(tableName, fn, bbox, whereQuery) {
+    static async formQuery(tableName, fn, bbox, whereQuery) {
         logger.debug('Forming query');
-        let query = `for cov in (${tableName}) return `;
-        if (fn.function !== 'st_histogram') {
-	    logger.debug('No histogram in sight');
-            if (bbox && bbox.length > 0) {
-                if (whereQuery) {
-                    query += `encode(${fn.function}((cov.${fn.arguments[0]})[${whereQuery}, Lat :"" (${bbox[0]}:${bbox[1]}), Long :"" (${bbox[2]}:${bbox[3]}) ]), \"CSV\")`;
-                } else {
-                    query += `encode(${fn.function}((cov.${fn.arguments[0]})[Lat :"" (${bbox[0]}:${bbox[1]}), Long :"" (${bbox[2]}:${bbox[3]}) ]), \"CSV\")`;
-                }
-            } else {
-                if (whereQuery) {
-                    query += `encode(${fn.function}((cov.${fn.arguments[0]})[${whereQuery}]), \"CSV\")`;
-                } else {
-                    query += `encode(${fn.function}(cov.${fn.arguments[0]}), \"CSV\")`;
-                }
-            }
-        // st_histogram
-        } else {
-	    logger.debug('Histogram requested');
-	    query = RasdamanService.formHistogramQuery(tableName, fn, bbox, whereQuery);
-        }
-        logger.debug(query);
-        return query;
-    }
 
-    static async formHistogramQuery(tableName, fn, bbox, whereQuery, nbins) {
-	logger.debug('Forming histogram query.');
-	logger.debug(`function: ${JSON.stringify(fn)}`);
 	logger.debug('Checking number of bands.');
 	const fields = await RasdamanService.getFields(tableName);
 	const bands = Object.keys(fields['bands']);
 	logger.debug(`bands: ${bands}`);
 	const multiband = bands.length && bands.length > 1 ? true : false;
-	const incumbent_band = fn.arguments[0];
+	const current_band = fn.arguments[0];
 	logger.debug(`multiband: ${multiband}`);
-	logger.debug(`incumbent_band: ${incumbent_band}`);
-	// We'll store the multiband status in this var:
-	const band_subset_expr = multiband ? `.${incumbent_band}` : '';
-
+	logger.debug(`current_band: ${current_band}`);
+	const band_subset_expr = multiband ? `.${current_band}` : '';
 	logger.debug(`band_subset_expr: ${band_subset_expr}`);
-	
+	// ^ When creating queries for Rasdaman one shouldn't pass along the band name where rasters have one band only
+        let query = `for cov in (${tableName}) return `;
 
-	// Obtaining data bounds for histogram - min and max of data in the geo range provided
-	
-	// for cov in (test_rasdaman_1b) return encode(min(cov), "CSV")
-	// const query_min = `for cov in (${tableName}) return encode(min(cov), "CSV")`;
-	// const query_max = `for cov in (${tableName}) return encode(max(cov), "CSV")`;
-	return 'OK';
+	switch (fn.function) {
+	    
+	}
+
+        if (fn.function !== 'st_histogram') {
+	    logger.debug('No histogram in sight');
+            if (bbox && bbox.length > 0) {
+                if (whereQuery) {
+                    query += `encode(${fn.function}((cov${band_subset_expr})[${whereQuery}, Lat :"" (${bbox[0]}:${bbox[1]}), Long :"" (${bbox[2]}:${bbox[3]}) ]), \"CSV\")`;
+                } else {
+                    query += `encode(${fn.function}((cov${band_subset_expr})[Lat :"" (${bbox[0]}:${bbox[1]}), Long :"" (${bbox[2]}:${bbox[3]}) ]), \"CSV\")`;
+                }
+            } else {
+                if (whereQuery) {
+                    query += `encode(${fn.function}((cov${band_subset_expr})[${whereQuery}]), \"CSV\")`;
+                } else {
+                    query += `encode(${fn.function}(cov${band_subset_expr}), \"CSV\")`;
+                }
+            }
+        // st_histogram
+        } else {
+	    logger.debug('Histogram requested');
+	    const queryFragment = await RasdamanService.formHistogramQuery(tableName, fn, bbox, whereQuery, 100, band_subset_expr, current_band);
+	    query += queryFragment;
+        }
+
+        return query;
     }
 
+    static async formHistogramQuery(tableName, fn, bbox, whereQuery, nbins, band_subset_expr, current_band) {
+	logger.debug('Forming histogram query.');
+
+	// Once this is done, we need to figure out the max and min of the coverage under question
+
+	logger.debug('Building max and min queries');
+	const maxmin_fn = [
+	    {
+		"function": "max",
+		"arguments": [current_band]
+	    },
+	    {
+		"function": "min",
+		"arguments": [current_band]
+	    }
+	];
+
+	logger.debug(`maxmin_fn: ${maxmin_fn}`);
+	const maxmin = await RasdamanService.getQuery(tableName, maxmin_fn, bbox, whereQuery);
+	const query_max = maxmin['data'][0]['max'];
+	const query_min = maxmin['data'][0]['min'];
+	logger.debug(`query_max: ${query_max}`);
+	logger.debug(`query_min: ${query_min}`);
+
+	// To build the histogram query:
+
+	const query = `encode( coverage histogram over $bucket x(0:${nbins}) values count (((int)((cov${band_subset_expr})[${whereQuery}] * ${nbins} / (${query_max - query_min}) )) = $bucket), "CSV")`;
+
+	logger.debug(`query: ${query}`);
+
+	return query;
+    }
+    
     static async getQuery(tableName, functions, bbox, where) {
         logger.debug(`[RasdamanService] Performing query`);
         const endpoint = `${config.get('rasdaman.uri')}/rasdaman/ows`;
@@ -150,7 +179,8 @@ class RasdamanService {
         const whereQuery = RasdamanService.getWhere(where);
 	logger.debug(`Functions are: ${JSON.stringify(functions)}`);
         for (let i = 0; i < functions.length; i++) {
-            const query = RasdamanService.formQuery(tableName, functions[i], bbox, whereQuery);
+            const query = await RasdamanService.formQuery(tableName, functions[i], bbox, whereQuery);
+	    logger.debug(`query: ${query}`);
             const body = '<?xml version="1.0" encoding="UTF-8" ?>' +
             		  '<ProcessCoveragesRequest xmlns="http://www.opengis.net/wcps/1.0" service="WCPS" version="1.0.0">' +
             		  '<query><abstractSyntax>' +
