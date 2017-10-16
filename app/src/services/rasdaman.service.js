@@ -91,9 +91,10 @@ class RasdamanService {
     }
 
     static formQuery(tableName, fn, bbox, whereQuery) {
-        logger.debug('FORM QUERY');
+        logger.debug('Forming query');
         let query = `for cov in (${tableName}) return `;
         if (fn.function !== 'st_histogram') {
+	    logger.debug('No histogram in sight');
             if (bbox && bbox.length > 0) {
                 if (whereQuery) {
                     query += `encode(${fn.function}((cov.${fn.arguments[0]})[${whereQuery}, Lat :"" (${bbox[0]}:${bbox[1]}), Long :"" (${bbox[2]}:${bbox[3]}) ]), \"CSV\")`;
@@ -109,10 +110,27 @@ class RasdamanService {
             }
         // st_histogram
         } else {
-            query += `encode(${fn.function}(cov.${fn.arguments[1]}), \"CSV\")`;
+	    logger.debug('Histogram requested');
+	    query = RasdamanService.formHistogramQuery(tableName, fn, bbox, whereQuery);
         }
         logger.debug(query);
         return query;
+    }
+
+    static async formHistogramQuery(tableName, fn, bbox, whereQuery) {
+	logger.debug('Forming histogram query.');
+	logger.debug(`function: ${JSON.stringify(fn)}`);
+	logger.debug('Checking number of bands.');
+	const fields = await RasdamanService.getFields(tableName);
+	const bands = Object.keys(fields['bands']);
+	// We'll store the multiband status in this var:
+	const multiband = bands.length && bands.length > 1 ? true : false;
+	// Obtaining data bounds for histogram
+
+	// for cov in (test_rasdaman_1b) return encode(min(cov), "CSV")
+	// const query_min = `for cov in (${tableName}) return encode(min(cov), "CSV")`;
+	// const query_max = `for cov in (${tableName}) return encode(max(cov), "CSV")`;
+	return 'OK';
     }
 
     static async getQuery(tableName, functions, bbox, where) {
@@ -121,6 +139,7 @@ class RasdamanService {
         const fns = [];
         const reqs = [];
         const whereQuery = RasdamanService.getWhere(where);
+	logger.debug(`Functions are: ${JSON.stringify(functions)}`);
         for (let i = 0; i < functions.length; i++) {
             const query = RasdamanService.formQuery(tableName, functions[i], bbox, whereQuery);
             const body = '<?xml version="1.0" encoding="UTF-8" ?>' +
