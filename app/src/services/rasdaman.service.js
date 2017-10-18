@@ -4,7 +4,7 @@ const rp = require('request-promise');
 const xmlParser = require('xml2json');
 const jsonPath = require('jsonpath');
 const config = require('config');
-
+const traverse = require('traverse');
 
 class RasdamanService {
 
@@ -72,12 +72,64 @@ class RasdamanService {
     }
 
     static getWhere(where) {
-	logger.debug(`where: ${JSON.stringify(where)}`);
 	if( typeof where === 'string' ) {
+	    logger.debug('Where already processed. Skipping.');
 	    return where;
 	}
         const whereObj = {};
         if (where) {
+	    logger.debug(`where: ${JSON.stringify(where)}`);
+
+	    var bounds = [];
+
+	    traverse(where).forEach(function (leaf) {
+		if (leaf.type === 'operator') {
+		    logger.debug('Found operator');
+		    logger.debug(JSON.stringify(leaf));
+		    bounds.push({
+		    	'axis': leaf.left.value,
+		    	'value': leaf.right.value,
+			'operator': leaf.value
+		    });
+		} else if (leaf.type === 'between') {
+		    logger.debug('Found operator');
+		    logger.debug(JSON.stringify(leaf));
+
+		    const values = [
+			leaf.arguments[0].value,
+			leaf.arguments[1].value
+		    ].sort();
+		    logger.debug(`values: ${values}`);
+
+		    bounds.push(...[
+			{
+			    'axis': leaf.value,
+		    	    'value': values[0],
+			    'operator': '>'
+			},{
+			    'axis': leaf.value,
+		    	    'value': values[1],
+			    'operator': '<'
+			}
+		    ]);
+		    
+		};
+
+	    });
+	    logger.debug(`bounds: ${JSON.stringify(bounds)}`);
+
+	    // Now we need to see what axes have been employed in the query
+
+	    const axes = new Set(bounds.map(bound => bound.axis));
+	    for (let axis of axes) {
+		
+	    }
+	    logger.debug(`axes: ${axes}`);
+
+
+
+	    
+	    
             while (where.type === 'conditional') {
                 if (whereObj[where.right.left.value] === undefined) {
                     whereObj[where.right.left.value] = [];
