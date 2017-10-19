@@ -1,4 +1,3 @@
-
 const logger = require('logger');
 const rp = require('request-promise');
 const xmlParser = require('xml2json');
@@ -9,66 +8,93 @@ const traverse = require('traverse');
 class RasdamanService {
 
     static async getFields(tableName) {
-        logger.debug(`Obtaining fields of ${tableName}`);
-        const reqUrl = `${config.get('rasdaman.uri')}/rasdaman/ows?&SERVICE=WCS&VERSION=2.0.1&REQUEST=DescribeCoverage&COVERAGEID=${tableName}`;
-        logger.debug('Doing request to ', reqUrl);
-        try {
-            const req = await rp({
-                method: 'GET',
-                uri: reqUrl
-            });
-            const result = xmlParser.toJson(req);
+	logger.debug(`Obtaining fields of ${tableName}`);
+	const reqUrl = `${config.get('rasdaman.uri')}/rasdaman/ows?&SERVICE=WCS&VERSION=2.0.1&REQUEST=DescribeCoverage&COVERAGEID=${tableName}`;
+	logger.debug('Doing request to ', reqUrl);
+	try {
+	    const req = await rp({
+		method: 'GET',
+		uri: reqUrl
+	    });
+	    const result = xmlParser.toJson(req);
 
-            const resultJson = JSON.parse(result);
-            const srs = jsonPath.query(resultJson, '$[\'wcs:CoverageDescriptions\'][\'wcs:CoverageDescription\'][\'boundedBy\'][\'Envelope\'][\'srsName\']')[0];
-            const fields = jsonPath.query(resultJson, '$[\'wcs:CoverageDescriptions\'][\'wcs:CoverageDescription\'][\'boundedBy\'][\'Envelope\'][\'axisLabels\']')[0].split(' ');
-            const srsDimension = jsonPath.query(resultJson, '$[\'wcs:CoverageDescriptions\'][\'wcs:CoverageDescription\'][\'boundedBy\'][\'Envelope\'][\'srsDimension\']')[0];
-            const lowerCorner = jsonPath.query(resultJson, '$[\'wcs:CoverageDescriptions\'][\'wcs:CoverageDescription\'][\'boundedBy\'][\'Envelope\'][\'lowerCorner\']')[0];
-            const upperCorner = jsonPath.query(resultJson, '$[\'wcs:CoverageDescriptions\'][\'wcs:CoverageDescription\'][\'boundedBy\'][\'Envelope\'][\'upperCorner\']')[0];
-            const rangeType = jsonPath.query(resultJson, '$[\'wcs:CoverageDescriptions\'][\'wcs:CoverageDescription\'][\'gmlcov:rangeType\'][\'swe:DataRecord\'][\'swe:field\'][*]');
-            const bands = rangeType.reduce((acc, cur) => {
-                acc[cur.name] = cur;
-                delete acc[cur.name].name;
-                return acc;
-            }, {});
-            return {
-                tableName,
-                bands,
-                fields,
-                meta: {
-                    srs: {
-                        srsDimension,
-                        srs: srs.replace('http://localhost:8080/def/', '')
-                    },
-                    coverageBounds: {
-                        upperCorner,
-                        lowerCorner
-                    }
-                }
-            };
-        } catch (err) {
-            logger.error('Error obtaining fields', err);
-            throw new Error('Error obtaining fields');
-        }
+	    const resultJson = JSON.parse(result);
+	    const srs = jsonPath.query(resultJson, '$[\'wcs:CoverageDescriptions\'][\'wcs:CoverageDescription\'][\'boundedBy\'][\'Envelope\'][\'srsName\']')[0];
+	    const fields = jsonPath.query(resultJson, '$[\'wcs:CoverageDescriptions\'][\'wcs:CoverageDescription\'][\'boundedBy\'][\'Envelope\'][\'axisLabels\']')[0].split(' ');
+	    const srsDimension = jsonPath.query(resultJson, '$[\'wcs:CoverageDescriptions\'][\'wcs:CoverageDescription\'][\'boundedBy\'][\'Envelope\'][\'srsDimension\']')[0];
+	    const lowerCorner = jsonPath.query(resultJson, '$[\'wcs:CoverageDescriptions\'][\'wcs:CoverageDescription\'][\'boundedBy\'][\'Envelope\'][\'lowerCorner\']')[0];
+	    const upperCorner = jsonPath.query(resultJson, '$[\'wcs:CoverageDescriptions\'][\'wcs:CoverageDescription\'][\'boundedBy\'][\'Envelope\'][\'upperCorner\']')[0];
+	    const rangeType = jsonPath.query(resultJson, '$[\'wcs:CoverageDescriptions\'][\'wcs:CoverageDescription\'][\'gmlcov:rangeType\'][\'swe:DataRecord\'][\'swe:field\'][*]');
+	    const bands = rangeType.reduce((acc, cur) => {
+		acc[cur.name] = cur;
+		delete acc[cur.name].name;
+		return acc;
+	    }, {});
+	    return {
+		tableName,
+		bands,
+		fields,
+		meta: {
+		    srs: {
+			srsDimension,
+			srs: srs.replace('http://localhost:8080/def/', '')
+		    },
+		    coverageBounds: {
+			upperCorner,
+			lowerCorner
+		    }
+		}
+	    };
+	} catch (err) {
+	    logger.error('Error obtaining fields', err);
+	    throw new Error('Error obtaining fields');
+	}
     }
 
     static getOperator(operator) {
-        return `${operator.right.value}`;
+	return `${operator.right.value}`;
     }
 
+
+    static getWhereString(boundsArray) {
+	try {
+	    logger.debug('Validating where');
+	    // First let's see if there's only a slice over this dimension
+	    logger.debug(boundsArray);
+	    if (boundsArray.length == 1 && boundsArray[0].operator === '=' ) {
+		return `${boundsArray[0].axis}(${boundsArray[0].value})`;
+	    } else if (boundsArray.length == 2) {
+		// If not, there should be two bounds
+		const operators = boundsArray.map(bound => bound.operator).sort();
+		const boundValues = boundsArray.map(bound => bound.value).sort();
+		const validBounds = operators[0] === '<' && operators[1] === '>';
+		if (validBounds) { 
+		    return `${boundsArray[0].axis}(${boundValues[0]}:${boundValues[1]})`;
+		}
+	    } else {
+		throw new Error('Where not valid');
+	    };
+
+	} catch (err) {
+	    logger.error('Error validating where', err);
+	    throw new Error('Error validating where');
+	}
+    }
+
+
     static getStrQuery(whereObj) {
-        let strQuery = '';
-        Object.keys(whereObj).forEach(key => {
-            const el = whereObj[key];
-            if (el.length === 1) {
-                strQuery += `${key}(${el[0]})`;
-            } else {
-                el.sort();
-                strQuery += `${key}(${el[0]}:${el[1]})`;
-            }
-            strQuery += ', ';
-        });
-        return strQuery !== '' ? strQuery.substr(0, [strQuery.length - 2]) : undefined;
+	let strQuery = '';
+	Object.keys(whereObj).forEach(key => {
+	    const el = whereObj[key];
+	    if (el.length === 1) {
+		strQuery += `${key}(${el[0]})`;
+	    } else {
+		el.sort();
+		strQuery += `${key}(${el[0]}:${el[1]})`;
+	    }
+	    strQuery += ', ';
+	});
+	return strQuery !== '' ? strQuery.substr(0, [strQuery.length - 2]) : undefined;
     }
 
     static getWhere(where) {
@@ -76,19 +102,17 @@ class RasdamanService {
 	    logger.debug('Where already processed. Skipping.');
 	    return where;
 	}
-        const whereObj = {};
-        if (where) {
+	const whereObj = {};
+	if (where) {
 	    logger.debug(`where: ${JSON.stringify(where)}`);
-
 	    var bounds = [];
-
 	    traverse(where).forEach(function (leaf) {
 		if (leaf.type === 'operator') {
 		    logger.debug('Found operator');
 		    logger.debug(JSON.stringify(leaf));
 		    bounds.push({
-		    	'axis': leaf.left.value,
-		    	'value': leaf.right.value,
+			'axis': leaf.left.value,
+			'value': leaf.right.value,
 			'operator': leaf.value
 		    });
 		} else if (leaf.type === 'between') {
@@ -99,54 +123,51 @@ class RasdamanService {
 			leaf.arguments[0].value,
 			leaf.arguments[1].value
 		    ].sort();
-		    logger.debug(`values: ${values}`);
 
 		    bounds.push(...[
 			{
 			    'axis': leaf.value,
-		    	    'value': values[0],
+			    'value': values[0],
 			    'operator': '>'
 			},{
 			    'axis': leaf.value,
-		    	    'value': values[1],
+			    'value': values[1],
 			    'operator': '<'
 			}
 		    ]);
-		    
+
 		};
 
 	    });
 	    logger.debug(`bounds: ${JSON.stringify(bounds)}`);
-
 	    // Now we need to see what axes have been employed in the query
 
 	    const axes = new Set(bounds.map(bound => bound.axis));
 	    for (let axis of axes) {
-		
+		const axis_bounds = bounds.filter(bound => bound.axis === axis);
+		// Either an equal or a pair of coordinate bounds
+		logger.debug(`axis_bounds: ${JSON.stringify(axis_bounds)}`);
+		const whereString = RasdamanService.getWhereString(axis_bounds);
+		logger.debug(`whereString: ${whereString}`);
 	    }
-	    logger.debug(`axes: ${axes}`);
 
-
-
-	    
-	    
-            while (where.type === 'conditional') {
-                if (whereObj[where.right.left.value] === undefined) {
-                    whereObj[where.right.left.value] = [];
-                }
-                whereObj[where.right.left.value].push(RasdamanService.getOperator(where.right));
-                where = where.left;
-            }
-            if (whereObj[where.left.value] === undefined) {
-                whereObj[where.left.value] = [];
-            }
-            whereObj[where.left.value].push(RasdamanService.getOperator(where));
-        }
-        return RasdamanService.getStrQuery(whereObj);
+	    while (where.type === 'conditional') {
+		if (whereObj[where.right.left.value] === undefined) {
+		    whereObj[where.right.left.value] = [];
+		}
+		whereObj[where.right.left.value].push(RasdamanService.getOperator(where.right));
+		where = where.left;
+	    }
+	    if (whereObj[where.left.value] === undefined) {
+		whereObj[where.left.value] = [];
+	    }
+	    whereObj[where.left.value].push(RasdamanService.getOperator(where));
+	}
+	return RasdamanService.getStrQuery(whereObj);
     }
 
     static async formQuery(tableName, fn, bbox, whereQuery) {
-        logger.debug('Forming query');
+	logger.debug('Forming query');
 
 	logger.debug('Checking number of bands.');
 	const fields = await RasdamanService.getFields(tableName);
@@ -159,35 +180,35 @@ class RasdamanService {
 	const band_subset_expr = multiband ? `.${current_band}` : '';
 	logger.debug(`band_subset_expr: ${band_subset_expr}`);
 	// ^ When creating queries for Rasdaman one shouldn't pass along the band name where rasters have one band only
-        let query = `for cov in (${tableName}) return `;
+	let query = `for cov in (${tableName}) return `;
 
 	switch (fn.function) {
-	    
+
 	}
 
-        if (fn.function !== 'st_histogram') {
+	if (fn.function !== 'st_histogram') {
 	    logger.debug('No histogram in sight');
-            if (bbox && bbox.length > 0) {
-                if (whereQuery) {
-                    query += `encode(${fn.function}((cov${band_subset_expr})[${whereQuery}, Lat :"" (${bbox[0]}:${bbox[1]}), Long :"" (${bbox[2]}:${bbox[3]}) ]), \"CSV\")`;
-                } else {
-                    query += `encode(${fn.function}((cov${band_subset_expr})[Lat :"" (${bbox[0]}:${bbox[1]}), Long :"" (${bbox[2]}:${bbox[3]}) ]), \"CSV\")`;
-                }
-            } else {
-                if (whereQuery) {
-                    query += `encode(${fn.function}((cov${band_subset_expr})[${whereQuery}]), \"CSV\")`;
-                } else {
-                    query += `encode(${fn.function}(cov${band_subset_expr}), \"CSV\")`;
-                }
-            }
-        // st_histogram
-        } else {
+	    if (bbox && bbox.length > 0) {
+		if (whereQuery) {
+		    query += `encode(${fn.function}((cov${band_subset_expr})[${whereQuery}, Lat :"" (${bbox[0]}:${bbox[1]}), Long :"" (${bbox[2]}:${bbox[3]}) ]), \"CSV\")`;
+		} else {
+		    query += `encode(${fn.function}((cov${band_subset_expr})[Lat :"" (${bbox[0]}:${bbox[1]}), Long :"" (${bbox[2]}:${bbox[3]}) ]), \"CSV\")`;
+		}
+	    } else {
+		if (whereQuery) {
+		    query += `encode(${fn.function}((cov${band_subset_expr})[${whereQuery}]), \"CSV\")`;
+		} else {
+		    query += `encode(${fn.function}(cov${band_subset_expr}), \"CSV\")`;
+		}
+	    }
+	// st_histogram
+	} else {
 	    logger.debug('Histogram requested');
 	    const queryFragment = await RasdamanService.formHistogramQuery(tableName, fn, bbox, whereQuery, 100, band_subset_expr, current_band);
 	    query += queryFragment;
-        }
+	}
 
-        return query;
+	return query;
     }
 
     static async formHistogramQuery(tableName, fn, bbox, whereQuery, nbins, band_subset_expr, current_band) {
@@ -222,59 +243,59 @@ class RasdamanService {
 
 	return query;
     }
-    
-    static async getQuery(tableName, functions, bbox, where) {
-        logger.debug(`[RasdamanService] Performing query`);
-        const endpoint = `${config.get('rasdaman.uri')}/rasdaman/ows`;
-        const fns = [];
-        const reqs = [];
-        const whereQuery = RasdamanService.getWhere(where);
-	logger.debug(`Functions are: ${JSON.stringify(functions)}`);
-        for (let i = 0; i < functions.length; i++) {
-            const query = await RasdamanService.formQuery(tableName, functions[i], bbox, whereQuery);
-	    logger.debug(`query: ${query}`);
-            const body = '<?xml version="1.0" encoding="UTF-8" ?>' +
-            		  '<ProcessCoveragesRequest xmlns="http://www.opengis.net/wcps/1.0" service="WCPS" version="1.0.0">' +
-            		  '<query><abstractSyntax>' +
-            		  query +
-            		  '</abstractSyntax></query>' +
-            		  '</ProcessCoveragesRequest>';
 
-            fns.push(functions[i].function);
-            reqs.push(await rp({
-                method: 'POST',
-                url: endpoint,
-                headers: {
-                    'content-type': 'application/xml'
-                },
-                json: false,
-                body
-            }));
-        }
-        // Provisional?
-        const responses = (await Promise.all(reqs));
-        const response = {};
-        for (let j = 0; j < fns.length; j++) {
-            response[fns[j]] = responses[j];
-        }
-        return { data: [response] };
+    static async getQuery(tableName, functions, bbox, where) {
+	logger.debug(`[RasdamanService] Performing query`);
+	const endpoint = `${config.get('rasdaman.uri')}/rasdaman/ows`;
+	const fns = [];
+	const reqs = [];
+	const whereQuery = RasdamanService.getWhere(where);
+	logger.debug(`Functions are: ${JSON.stringify(functions)}`);
+	for (let i = 0; i < functions.length; i++) {
+	    const query = await RasdamanService.formQuery(tableName, functions[i], bbox, whereQuery);
+	    logger.debug(`query: ${query}`);
+	    const body = '<?xml version="1.0" encoding="UTF-8" ?>' +
+			  '<ProcessCoveragesRequest xmlns="http://www.opengis.net/wcps/1.0" service="WCPS" version="1.0.0">' +
+			  '<query><abstractSyntax>' +
+			  query +
+			  '</abstractSyntax></query>' +
+			  '</ProcessCoveragesRequest>';
+
+	    fns.push(functions[i].function);
+	    reqs.push(await rp({
+		method: 'POST',
+		url: endpoint,
+		headers: {
+		    'content-type': 'application/xml'
+		},
+		json: false,
+		body
+	    }));
+	}
+	// Provisional?
+	const responses = (await Promise.all(reqs));
+	const response = {};
+	for (let j = 0; j < fns.length; j++) {
+	    response[fns[j]] = responses[j];
+	}
+	return { data: [response] };
     }
 
     static registerDataset(connector) {
-        const options = {
-            uri: `${config.get('rasdaman.importer')}/import`,
-            method: 'POST',
-            body: {
-                tableName: connector.tableName,
-                connectorUrl: connector.connectorUrl
-            },
-            json: true
-        };
-        try {
-            return rp(options);
-        } catch (e) {
-            throw new Error('error connecting to rasda');
-        }
+	const options = {
+	    uri: `${config.get('rasdaman.importer')}/import`,
+	    method: 'POST',
+	    body: {
+		tableName: connector.tableName,
+		connectorUrl: connector.connectorUrl
+	    },
+	    json: true
+	};
+	try {
+	    return rp(options);
+	} catch (e) {
+	    throw new Error('error connecting to rasda');
+	}
     }
 
 
