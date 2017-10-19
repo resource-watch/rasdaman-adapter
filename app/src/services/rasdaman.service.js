@@ -249,6 +249,7 @@ class RasdamanService {
 	const endpoint = `${config.get('rasdaman.uri')}/rasdaman/ows`;
 	const fns = [];
 	const reqs = [];
+	logger.debug(`where: ${JSON.stringify(where)}`);
 	const whereQuery = RasdamanService.getWhere(where);
 	logger.debug(`Functions are: ${JSON.stringify(functions)}`);
 	for (let i = 0; i < functions.length; i++) {

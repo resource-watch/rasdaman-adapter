@@ -45,6 +45,8 @@ class RasdamanRouter {
 	    const functions = ctx.state.functions;
 	    const bbox = ctx.state.bbox ? ctx.state.bbox : undefined;
 	    const where = ctx.state.jsonSql.where;
+	    // is
+	    logger.debug(`where: ${JSON.stringify(where)}`);
 	    const response = await RasdamanService.getQuery(dataset.tableName, functions, bbox, where);
 	    logger.info(`Response: `, response);
 	    response.cloneUrl = cloneUrl;
@@ -129,8 +131,11 @@ const toSQLMiddleware = async (ctx, next) => {
 
     if (ctx.query.sql || ctx.request.body.sql) {
 	logger.debug('Checking sql correct');
+	logger.debug(`ctx.request.body: ${JSON.stringify(ctx.request.body)}`);
 	const params = Object.assign({}, ctx.query, ctx.request.body);
+	logger.debug(`params: ${JSON.stringify(params)}`);
 	options.uri = `/convert/sql2SQL?sql=${encodeURIComponent(params.sql)}`;
+	logger.debug(options.uri);
     } else {
 	logger.debug('Obtaining sql from featureService');
 	const fs = Object.assign({}, ctx.request.body);
@@ -150,10 +155,13 @@ const toSQLMiddleware = async (ctx, next) => {
 
     try {
 	const result = await ctRegisterMicroservice.requestToMicroservice(options);
-	logger.debug('result', result.statusCode);
+	logger.debug('result:', result.statusCode);
 	if (result.statusCode === 204 || result.statusCode === 200) {
+	    logger.debug(`data_response: ${JSON.stringify(result.body)}`);
 	    ctx.query.sql = result.body.data.attributes.query;
 	    ctx.state.jsonSql = result.body.data.attributes.jsonSql;
+	    // What
+	    logger.debug(`jsonSql: ${JSON.stringify(result.body.data.attributes.jsonSql)}`);
 	    await next();
 	} else {
 	    if (result.statusCode === 400) {
