@@ -156,13 +156,12 @@ class RasdamanService {
 	if (fn.function !== 'st_histogram') {
 	    logger.debug('No histogram in sight');
 
-	    if (whereQuery) {
+	    if (!(whereQuery === '[]')) {
 		query += `encode(${fn.function}((cov${band_subset_expr})${whereQuery}), \"CSV\")`;
 	    } else {
 		query += `encode(${fn.function}(cov${band_subset_expr}), \"CSV\")`;
 	    }
-	    
-	    
+	    	    
 	    const result = await RasdamanService.rasdamanQuery(query);
 	    return parseFloat(result);
 	// st_histogram
