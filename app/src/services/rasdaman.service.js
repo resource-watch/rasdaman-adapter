@@ -81,22 +81,6 @@ class RasdamanService {
 	}
     }
 
-
-    static getStrQuery(whereObj) {
-	let strQuery = '';
-	Object.keys(whereObj).forEach(key => {
-	    const el = whereObj[key];
-	    if (el.length === 1) {
-		strQuery += `${key}(${el[0]})`;
-	    } else {
-		el.sort();
-		strQuery += `${key}(${el[0]}:${el[1]})`;
-	    }
-	    strQuery += ', ';
-	});
-	return strQuery !== '' ? strQuery.substr(0, [strQuery.length - 2]) : undefined;
-    }
-
     static getWhere(where) {
 	if( typeof where === 'string' ) {
 	    logger.debug('Where already processed. Skipping.');
@@ -108,62 +92,34 @@ class RasdamanService {
 	    var bounds = [];
 	    traverse(where).forEach(function (leaf) {
 		if (leaf.type === 'operator') {
-		    logger.debug('Found operator');
-		    logger.debug(JSON.stringify(leaf));
 		    bounds.push({
 			'axis': leaf.left.value,
 			'value': leaf.right.value,
 			'operator': leaf.value
 		    });
 		} else if (leaf.type === 'between') {
-		    logger.debug('Found operator');
-		    logger.debug(JSON.stringify(leaf));
-
 		    const values = [
 			leaf.arguments[0].value,
 			leaf.arguments[1].value
 		    ].sort();
-
-		    bounds.push(...[
-			{
-			    'axis': leaf.value,
-			    'value': values[0],
-			    'operator': '>'
-			},{
-			    'axis': leaf.value,
-			    'value': values[1],
-			    'operator': '<'
-			}
+		    bounds.push(...[ // Unpacking  the array
+			{ 'axis': leaf.value, 'value': values[0], 'operator': '>'},
+			{ 'axis': leaf.value, 'value': values[1], 'operator': '<'}
 		    ]);
-
 		};
 
 	    });
-	    logger.debug(`bounds: ${JSON.stringify(bounds)}`);
-	    // Now we need to see what axes have been employed in the query
-
 	    const axes = new Set(bounds.map(bound => bound.axis));
+	    let boundsArray = [];
 	    for (let axis of axes) {
 		const axis_bounds = bounds.filter(bound => bound.axis === axis);
-		// Either an equal or a pair of coordinate bounds
-		logger.debug(`axis_bounds: ${JSON.stringify(axis_bounds)}`);
 		const whereString = RasdamanService.getWhereString(axis_bounds);
-		logger.debug(`whereString: ${whereString}`);
+		boundsArray.push(whereString);
 	    }
-
-	    while (where.type === 'conditional') {
-		if (whereObj[where.right.left.value] === undefined) {
-		    whereObj[where.right.left.value] = [];
-		}
-		whereObj[where.right.left.value].push(RasdamanService.getOperator(where.right));
-		where = where.left;
-	    }
-	    if (whereObj[where.left.value] === undefined) {
-		whereObj[where.left.value] = [];
-	    }
-	    whereObj[where.left.value].push(RasdamanService.getOperator(where));
+	    const boundsString = boundsArray.join();
+	    logger.debug(`boundsString: ${boundsString}`);
+	    return boundsString;
 	}
-	return RasdamanService.getStrQuery(whereObj);
     }
 
     static async formQuery(tableName, fn, bbox, whereQuery) {
@@ -182,10 +138,6 @@ class RasdamanService {
 	// ^ When creating queries for Rasdaman one shouldn't pass along the band name where rasters have one band only
 	let query = `for cov in (${tableName}) return `;
 
-	switch (fn.function) {
-
-	}
-
 	if (fn.function !== 'st_histogram') {
 	    logger.debug('No histogram in sight');
 	    if (bbox && bbox.length > 0) {
@@ -201,21 +153,21 @@ class RasdamanService {
 		    query += `encode(${fn.function}(cov${band_subset_expr}), \"CSV\")`;
 		}
 	    }
+
+	    const result = await RasdamanService.rasdamanQuery(query);
+	    return parseFloat(result);
 	// st_histogram
 	} else {
 	    logger.debug('Histogram requested');
-	    const queryFragment = await RasdamanService.formHistogramQuery(tableName, fn, bbox, whereQuery, 100, band_subset_expr, current_band);
-	    query += queryFragment;
+	    const result = await RasdamanService.histogramQuery(tableName, bbox, whereQuery, 10, band_subset_expr, current_band);
+	    return result;
 	}
-
-	return query;
     }
 
-    static async formHistogramQuery(tableName, fn, bbox, whereQuery, nbins, band_subset_expr, current_band) {
+    static async histogramQuery(tableName, bbox, whereQuery, nbins, band_subset_expr, current_band) {
 	logger.debug('Forming histogram query.');
 
 	// Once this is done, we need to figure out the max and min of the coverage under question
-
 	logger.debug('Building max and min queries');
 	const maxmin_fn = [
 	    {
@@ -227,21 +179,55 @@ class RasdamanService {
 		"arguments": [current_band]
 	    }
 	];
-
 	logger.debug(`maxmin_fn: ${maxmin_fn}`);
 	const maxmin = await RasdamanService.getQuery(tableName, maxmin_fn, bbox, whereQuery);
 	const query_max = maxmin['data'][0]['max'];
 	const query_min = maxmin['data'][0]['min'];
 	logger.debug(`query_max: ${query_max}`);
 	logger.debug(`query_min: ${query_min}`);
-
+	logger.debug(`type: ${typeof(query_min)}`);
 	// To build the histogram query:
-
-	const query = `encode( coverage histogram over $bucket x(0:${nbins}) values count (((int)((cov${band_subset_expr})[${whereQuery}] * ${nbins} / (${query_max - query_min}) )) = $bucket), "CSV")`;
-
+	const query = `for cov in (${tableName}) return encode( coverage histogram over $bucket x(0:${nbins}) values count (((int)((cov${band_subset_expr})[${whereQuery}] * ${nbins} / (${query_max - query_min}) )) = $bucket), "CSV")`;
 	logger.debug(`query: ${query}`);
+	const rasdaman_result = await RasdamanService.rasdamanQuery(query);
+	const histogram_y = rasdaman_result.replace('{', '').replace('}', '').split(',');
+	logger.debug(`rasdaman_result: ${rasdaman_result}`);
+	logger.debug(`histogram_y: ${histogram_y}`);
+	const histogram_steps = [...Array(nbins +1).keys()].map(step => parseFloat((query_min + step * ((query_max - query_min)/nbins))).toFixed(2) );
+	logger.debug(`histogram_steps: ${histogram_steps}`);
+	const results = histogram_y.map(function(result, i) {
+	    const val = histogram_steps[i].toString();
+	    return [
+		parseFloat(val),
+		parseInt(result)
+	    ];
+	});
 
-	return query;
+	logger.debug(`results: ${JSON.stringify(results)}`);
+	return results;
+    }
+
+    static async rasdamanQuery(query) {
+	logger.debug('Executing rasdaman query');
+	logger.debug(`query: ${query}`);
+	const endpoint = `${config.get('rasdaman.uri')}/rasdaman/ows`;
+	const body = '<?xml version="1.0" encoding="UTF-8" ?>' +
+	      '<ProcessCoveragesRequest xmlns="http://www.opengis.net/wcps/1.0" service="WCPS" version="1.0.0">' +
+	      '<query><abstractSyntax>' +
+	      query +
+	      '</abstractSyntax></query>' +
+	      '</ProcessCoveragesRequest>';
+	const request = await rp({
+	    method: 'POST',
+	    url: endpoint,
+	    headers: {
+		'content-type': 'application/xml'
+	    },
+	    json: false,
+	    body
+	});
+	logger.debug(`request: ${request}`);
+	return request;
     }
 
     static async getQuery(tableName, functions, bbox, where) {
@@ -249,33 +235,18 @@ class RasdamanService {
 	const endpoint = `${config.get('rasdaman.uri')}/rasdaman/ows`;
 	const fns = [];
 	const reqs = [];
+	const responses = [];
 	logger.debug(`where: ${JSON.stringify(where)}`);
 	const whereQuery = RasdamanService.getWhere(where);
 	logger.debug(`Functions are: ${JSON.stringify(functions)}`);
 	for (let i = 0; i < functions.length; i++) {
 	    const query = await RasdamanService.formQuery(tableName, functions[i], bbox, whereQuery);
 	    logger.debug(`query: ${query}`);
-	    const body = '<?xml version="1.0" encoding="UTF-8" ?>' +
-			  '<ProcessCoveragesRequest xmlns="http://www.opengis.net/wcps/1.0" service="WCPS" version="1.0.0">' +
-			  '<query><abstractSyntax>' +
-			  query +
-			  '</abstractSyntax></query>' +
-			  '</ProcessCoveragesRequest>';
-
 	    fns.push(functions[i].function);
-	    reqs.push(await rp({
-		method: 'POST',
-		url: endpoint,
-		headers: {
-		    'content-type': 'application/xml'
-		},
-		json: false,
-		body
-	    }));
+	    responses.push(query);
 	}
 	// Provisional?
-	const responses = (await Promise.all(reqs));
-	const response = {};
+	var response = {};
 	for (let j = 0; j < fns.length; j++) {
 	    response[fns[j]] = responses[j];
 	}
