@@ -43,6 +43,7 @@ class RasdamanRouter {
 	const cloneUrl = RasdamanRouter.getCloneUrl(ctx.request.url, ctx.params.dataset);
 	try {
 	    const functions = ctx.state.functions;
+	    logger.debug(`functions: ${functions}`);
 	    const bbox = ctx.state.bbox ? ctx.state.bbox : undefined;
 	    const where = ctx.state.jsonSql.where;
 	    // is
@@ -190,6 +191,7 @@ const allowedOperationsMiddleware = async (ctx, next) => {
 	    if ((el.type === 'function') && (allowedOperations.indexOf(el.value) > -1)) {
 		functions.push({
 		    function: el.value,
+		    alias: el.alias,
 		    arguments: el.arguments.map(ar => ar.value)
 		});
 	    }

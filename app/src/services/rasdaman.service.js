@@ -132,15 +132,14 @@ class RasdamanService {
 	    const whereString = RasdamanService.getWhereString(axis_bounds);
 	    boundsArray.push(whereString);
 	}
-	boundsString = `[${boundsArray.join()}]`;
+	logger.debug(`boundsArray: ${boundsArray}`);
+	boundsString = !(boundsArray === []) ? `[${boundsArray.join()}]` : '';
 	logger.debug(`boundsString: ${boundsString}`);
 	return boundsString;
     }
 
     static async query(tableName, fn, bbox, whereQuery) {
 	logger.debug('Forming query');
-	logger.debug('Forming query');
-	logger.debug('Checking number of bands.');
 	const fields = await RasdamanService.getFields(tableName);
 	const bands = Object.keys(fields['bands']);
 	logger.debug(`bands: ${bands}`);
@@ -152,7 +151,6 @@ class RasdamanService {
 	logger.debug(`band_subset_expr: ${band_subset_expr}`);
 	// ^ When creating queries for Rasdaman one shouldn't pass along the band name where rasters have one band only
 	let query = `for cov in (${tableName}) return `;
-
 	if (fn.function !== 'st_histogram') {
 	    logger.debug('No histogram in sight');
 
@@ -180,10 +178,12 @@ class RasdamanService {
 	const maxmin_fn = [
 	    {
 		"function": "max",
+		"alias": "max",
 		"arguments": [current_band]
 	    },
 	    {
 		"function": "min",
+		"alias": "min",
 		"arguments": [current_band]
 	    }
 	];
@@ -195,6 +195,9 @@ class RasdamanService {
 	logger.debug(`query_min: ${query_min}`);
 	logger.debug(`type: ${typeof(query_min)}`);
 	// To build the histogram query:
+	whereQuery = !(whereQuery === '[]') ? whereQuery : '';
+	logger.debug(`whereQuery: ${whereQuery}`);
+	
 	const query = `for cov in (${tableName}) return encode( coverage histogram over $bucket x(0:${nbins}) values count (((int)((cov${band_subset_expr})${whereQuery} * ${nbins} / (${query_max - query_min}) )) = $bucket), "CSV")`;
 	logger.debug(`query: ${query}`);
 	const rasdaman_result = await RasdamanService.rasdamanQuery(query);
@@ -248,10 +251,14 @@ class RasdamanService {
 	const whereQuery = RasdamanService.getWhere(where, bbox);
 	logger.debug(`Functions are: ${JSON.stringify(functions)}`);
 	for (let i = 0; i < functions.length; i++) {
-	    const query = await RasdamanService.query(tableName, functions[i], bbox, whereQuery);
-	    logger.debug(`query: ${query}`);
-	    fns.push(functions[i].function);
-	    responses.push(query);
+	    const queryResult = await RasdamanService.query(tableName, functions[i], bbox, whereQuery);
+	    logger.debug(`queryResult: ${queryResult}`);
+	    const alias = functions[i].alias ? functions[i].alias : undefined;
+	    const funcName = alias ? alias : `${functions[i].function}(${functions[i].arguments.join()})`;
+	    
+	    logger.debug(`funcName: ${funcName}`);
+	    fns.push(funcName);
+	    responses.push(queryResult);
 	}
 	// Provisional?
 	var response = {};
