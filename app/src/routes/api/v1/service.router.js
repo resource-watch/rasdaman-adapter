@@ -97,6 +97,9 @@ class RasdamanRouter {
 
     static async getTile(ctx) {
 	logger.debug('[RasdamanRouter] Obtaining tile');
+
+	const tile = await TileService.getTile(ctx.params.z, ctx.params.x, ctx.params.y);
+
 	ctx.body = 'OK';
     }
 

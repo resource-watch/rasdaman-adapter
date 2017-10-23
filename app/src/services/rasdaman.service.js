@@ -240,6 +240,8 @@ class RasdamanService {
 	logger.debug(`request: ${request}`);
 	return request;
     }
+    
+    static async tileQuery(tableName, bbox) {}
 
     static async getQuery(tableName, functions, bbox, where) {
 	logger.debug(`[RasdamanService] Performing query`);
