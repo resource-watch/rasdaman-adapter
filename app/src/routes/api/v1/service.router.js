@@ -2,6 +2,8 @@ const Router = require('koa-router');
 const logger = require('logger');
 const ctRegisterMicroservice = require('ct-register-microservice-node');
 const RasdamanService = require('services/rasdaman.service');
+const TileService = require('services/tile.service');
+const LayerService = require('services/layer.service');
 const ErrorSerializer = require('serializers/error.serializer');
 const JSONAPIDeserializer = require('jsonapi-serializer').Deserializer;
 
@@ -49,7 +51,7 @@ class RasdamanRouter {
 	    // is
 	    logger.debug(`where: ${JSON.stringify(where)}`);
 	    const response = await RasdamanService.getQuery(dataset.tableName, functions, bbox, where);
-	    logger.info(`Response: `, response);
+	    logger.debug(`Response: `, response);
 	    response.cloneUrl = cloneUrl;
 	    ctx.body = response;
 	} catch (err) {
@@ -93,6 +95,11 @@ class RasdamanRouter {
 	ctx.body = {};
     }
 
+    static async getTile(ctx) {
+	logger.debug('[RasdamanRouter] Obtaining tile');
+	ctx.body = 'OK';
+    }
+
 }
 
 const deserializer = (obj) => (new Promise((resolve, reject) => {
@@ -117,6 +124,18 @@ const deserializeDataset = async (ctx, next) => {
     }
     await next();
 };
+
+const layerValidationMiddleware = async(ctx, next) => {
+    logger.info(`[RasdmanRouter] Validating layer presence`);
+    //
+    try {
+        await LayerService.checkLayer(ctx);
+    } catch (err) {
+        ctx.throw(err.statusCode, "Layer not found");
+    };
+    await next();
+};
+
 
 const toSQLMiddleware = async (ctx, next) => {
     const options = {
@@ -241,10 +260,14 @@ const getBbox = async (ctx, next) => {
     }
 };
 
+const getCoordinates = async (ctx, next) => {
+    logger.debug('Middleware running');
+};
+
 
 router.post('/query/:dataset', deserializeDataset, toSQLMiddleware, allowedOperationsMiddleware, getBbox, RasdamanRouter.query);
+router.get('/layer/:layer/tile/rasdaman/:z/:x/:y', layerValidationMiddleware, RasdamanRouter.getTile);
 // router.post('/download/:dataset', deserializeDataset, queryMiddleware, RasdamanRouter.download);
 router.post('/fields/:dataset', deserializeDataset, RasdamanRouter.fields);
 router.post('/rest-datasets/rasdaman', deserializeDataset, RasdamanRouter.registerDataset);
-
 module.exports = router;
