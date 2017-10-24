@@ -4,6 +4,7 @@ const ctRegisterMicroservice = require('ct-register-microservice-node');
 const RasdamanService = require('services/rasdaman.service');
 const TileService = require('services/tile.service');
 const LayerService = require('services/layer.service');
+const DatasetService = require('services/dataset.service');
 const ErrorSerializer = require('serializers/error.serializer');
 const JSONAPIDeserializer = require('jsonapi-serializer').Deserializer;
 
@@ -97,10 +98,11 @@ class RasdamanRouter {
 
     static async getTile(ctx) {
 	logger.debug('[RasdamanRouter] Obtaining tile');
-
-	const tile = await TileService.getTile(ctx.params.z, ctx.params.x, ctx.params.y);
-
-	ctx.body = 'OK';
+	logger.debug(`ctx.request: ${JSON.stringify(ctx.request.body)}`);
+	const layerConfig = ctx.request.body.layerConfig;
+	logger.debug(`tile layerConfig: ${layerConfig}`);
+	const tableName = ctx.request.body.tableName;
+	const tile = await TileService.getTile(ctx.params.z, ctx.params.x, ctx.params.y, tableName, layerConfig);
     }
 
 }
@@ -128,17 +130,28 @@ const deserializeDataset = async (ctx, next) => {
     await next();
 };
 
-const layerValidationMiddleware = async(ctx, next) => {
+const layerMiddleware = async(ctx, next) => {
     logger.info(`[RasdmanRouter] Validating layer presence`);
-    //
     try {
-        await LayerService.checkLayer(ctx);
+        const layer = await LayerService.checkLayer(ctx);
+	const layerConfig = layer.data.attributes.layerConfig;
+	ctx.request.body.layerConfig = layerConfig;
+	const dataset = layer.data.attributes.dataset;
+	ctx.request.body.dataset = dataset;
     } catch (err) {
         ctx.throw(err.statusCode, "Layer not found");
     };
     await next();
 };
 
+const datasetMiddleware = async(ctx, next) => {
+    logger.info(`[RasdamanRouter] Obtaining dataset and tablename`);
+    try {
+	const dataset = await DatasetService.checkDataset(ctx);
+	
+    } catch (err) {};
+    await next();
+};
 
 const toSQLMiddleware = async (ctx, next) => {
     const options = {
@@ -269,7 +282,7 @@ const getCoordinates = async (ctx, next) => {
 
 
 router.post('/query/:dataset', deserializeDataset, toSQLMiddleware, allowedOperationsMiddleware, getBbox, RasdamanRouter.query);
-router.get('/layer/:layer/tile/rasdaman/:z/:x/:y', layerValidationMiddleware, RasdamanRouter.getTile);
+router.get('/layer/:layer/tile/rasdaman/:z/:x/:y', layerMiddleware, datasetMiddleware, RasdamanRouter.getTile);
 // router.post('/download/:dataset', deserializeDataset, queryMiddleware, RasdamanRouter.download);
 router.post('/fields/:dataset', deserializeDataset, RasdamanRouter.fields);
 router.post('/rest-datasets/rasdaman', deserializeDataset, RasdamanRouter.registerDataset);
