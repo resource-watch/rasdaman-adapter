@@ -1,5 +1,5 @@
-FROM node:7.7-alpine
-MAINTAINER raul.requero@vizzuality.com
+FROM node:8.8-alpine
+MAINTAINER enrique.cornejo@vizzuality.com
 
 ENV NAME rasdaman-adapter
 ENV USER rasdaman-adapter

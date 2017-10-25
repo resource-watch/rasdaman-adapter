@@ -98,13 +98,13 @@ class RasdamanRouter {
 
     static async getTile(ctx) {
 	logger.debug('[RasdamanRouter] Obtaining tile');
-	logger.debug(`ctx.request: ${JSON.stringify(ctx.request.body)}`);
 	const layerConfig = ctx.request.body.layerConfig;
-	logger.debug(`tile layerConfig: ${layerConfig}`);
 	const tableName = ctx.request.body.tableName;
 	const tile = await TileService.getTile(ctx.params.z, ctx.params.x, ctx.params.y, tableName, layerConfig);
+	ctx.response.type = 'img/png';
+	ctx.response.attachment('tile.png');
+	ctx.body = tile;	
     }
-
 }
 
 const deserializer = (obj) => (new Promise((resolve, reject) => {

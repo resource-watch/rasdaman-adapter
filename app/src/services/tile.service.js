@@ -5,7 +5,14 @@ const fs = require('fs');
 const tempy = require('tempy');
 const SphericalMercator = require('sphericalmercator');
 const tinygradient = require('tinygradient');
-var tiles = new SphericalMercator({
+const Jimp = require('jimp');
+const uniqueString = require('unique-string');
+const util = require('util');
+const exec = util.promisify(require('child_process').exec);
+
+Jimp.prototype.writeAsync = util.promisify( Jimp.prototype.write );
+
+const tiles = new SphericalMercator({
     size: 256
 });
 
@@ -22,7 +29,7 @@ class TileService {
 	// ^ Remember to consider any extra axes
 	// const extra_slices_expr = TileService.formSliceExpr(bbox, [{'axis': 'ansi', 'value': 1955}]);
 	const tile_type = layerConfig.style;
-	let query;
+	let query, result;
 	switch (tile_type) {
 	case 'single-band':
 	    logger.debug('Single band raster detected');
@@ -30,8 +37,14 @@ class TileService {
 	    logger.debug(`bounds: ${bounds}`);
 	    query = TileService.formSingleBandQuery(tableName, slices_expr, bounds);
 	    const blackAndWhiteTile = await TileService.tileQuery(query);
+	    logger.debug(`blackAndWhiteTile: ${blackAndWhiteTile}`);
 	    const rampObject = layerConfig.colorRamp;
 	    const colorRamp = await TileService.generateColorRamp(rampObject, bounds);
+	    logger.debug(`colorRamp: ${colorRamp}`);
+	    const outFileName = tempy.file({extension: 'png'});
+	    //const outFileName = '/tmp/' + uniqueString() + '.png';
+ 	    logger.debug(`outFileName: ${outFileName}`);
+	    result = await TileService.convert(blackAndWhiteTile, colorRamp, outFileName);
 	    break;
 	case 'multiband':
 	    break;
@@ -41,10 +54,22 @@ class TileService {
 	    throw new Error('No style provided in layerConfig. It must be one of <single-band|multiband|false-color>.');
 	    break;
 	}
-	
-	logger.debug(`query is: ${query}`);
+	// Huge output
+	// logger.debug(`result: ${result}`);
+	return result;
+    }
 
-	return query;
+    static base64encode(file) {
+	const imageData = fs.readFileSync(file);
+	const b64 = Buffer.from(imageData, 'base64');
+	return b64;
+    }
+    
+    static async convert(blackAndWhiteTile, colorRamp, outFileName) {
+	const {stdout, stderr } = await exec(`convert ${blackAndWhiteTile} ${colorRamp} -clut ${outFileName}`);
+	logger.debug(stdout);
+	logger.debug(stderr);
+	return TileService.base64encode(outFileName);
     }
 
     static async tileQuery(query) {
@@ -93,26 +118,42 @@ class TileService {
 	const colors = rampObject.map(
 	    (colour) => colour.color
 	);
-	
-	logger.debug(stops);
-	logger.debug(colors);
 
-	// HERE YOU ARE
 	const gradient = tinygradient(stops.map( function(stop, i) {
 	    return {
 		color: colors[i],
 		pos: stop
 	    };
-	}));
+	})).rgb(255);
 
-	logger.debug(gradient);
+	// logger.debug(gradient);
+	let colorMap = Array();
+	gradient.forEach(function(color) {
+	    colorMap.push([color._r, color._g, color._b, 255].map((c) => Math.round(c)));
+	});
 
-
-	const colorRamp = gradient.rgb(255);
-	logger.debug(colorRamp);
-
+	const imageData = colorMap.map( (a) => Jimp.rgbaToInt(...a));
 	
+	const tempFilename = tempy.file({extension: 'png'});
+	logger.debug(`tempFilename: ${tempFilename}`);
+
+	const fn = await TileService.writeCRPNG(imageData, tempFilename, (x) => x);
+	
+	return fn;
+
     }
+
+    static async writeCRPNG (imageData, tempFilename, callback) {
+	let image = new Jimp(1, 255);
+	imageData.forEach((col, i) => {
+	    image.setPixelColor(col, 1, i);
+	});
+	await image.writeAsync(tempFilename);
+
+	logger.debug(`Done`);
+	return tempFilename;
+	
+    };
     
     static async getBbox (z, x, y) {
 	const bbox = tiles.bbox(x, y, z);
@@ -148,7 +189,7 @@ class TileService {
 	    //
 	    //        (b-a)(x - min)
 	    // f(x) = --------------  + a
-            //          max - min
+	    //          max - min
 	    //
 	    // In this case, the bounds  a and b will be translated to the  0-255 range. So f(x)...
 	    //
@@ -162,5 +203,3 @@ class TileService {
 }
 
 module.exports = TileService;
-
-
