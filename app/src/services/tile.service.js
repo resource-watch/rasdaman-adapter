@@ -1,6 +1,10 @@
+const config = require('config');
 const logger = require('logger');
+const rp = require('request-promise');
+const fs = require('fs');
+const tempy = require('tempy');
 const SphericalMercator = require('sphericalmercator');
-
+const tinygradient = require('tinygradient');
 var tiles = new SphericalMercator({
     size: 256
 });
@@ -25,6 +29,9 @@ class TileService {
 	    const bounds = layerConfig.bounds.map(parseFloat).sort();
 	    logger.debug(`bounds: ${bounds}`);
 	    query = TileService.formSingleBandQuery(tableName, slices_expr, bounds);
+	    const blackAndWhiteTile = await TileService.tileQuery(query);
+	    const rampObject = layerConfig.colorRamp;
+	    const colorRamp = await TileService.generateColorRamp(rampObject, bounds);
 	    break;
 	case 'multiband':
 	    break;
@@ -38,6 +45,73 @@ class TileService {
 	logger.debug(`query is: ${query}`);
 
 	return query;
+    }
+
+    static async tileQuery(query) {
+	logger.debug('Executing rasdaman query for tile');
+	logger.debug(`query: ${query}`);
+	const endpoint = `${config.get('rasdaman.uri')}/rasdaman/ows`;
+	const body = '<?xml version="1.0" encoding="UTF-8" ?>' +
+	      '<ProcessCoveragesRequest xmlns="http://www.opengis.net/wcps/1.0" service="WCPS" version="1.0.0">' +
+	      '<query><abstractSyntax>' +
+	      query +
+	      '</abstractSyntax></query>' +
+	      '</ProcessCoveragesRequest>';
+
+	const tempFilename = tempy.file({extension: 'png'});
+	logger.debug(`tempFilename: ${tempFilename}`);
+	const request = await rp({
+	    method: 'POST',
+	    url: endpoint,
+	    encoding: null,
+	    headers: {
+		'content-type': 'application/xml'
+	    },
+	    json: false,
+	    body
+	}).then(function (res) {
+	    const buffer = Buffer.from(res, 'utf8');
+	    fs.writeFileSync(tempFilename, buffer);
+	});;
+
+	return tempFilename;
+    }
+
+    static rescale(number, bounds) {
+	return (number - bounds[0]) / (bounds[1] - bounds[0]);
+    }
+
+    // This might need to be cached too
+    static async generateColorRamp(rampObject, bounds) {
+	logger.debug('Generating color ramp');
+	logger.debug(`rampObject: ${JSON.stringify(rampObject)}`);
+
+	const stops = rampObject.map(
+	    (x) =>  TileService.rescale(x.value, bounds)
+	);
+
+	const colors = rampObject.map(
+	    (colour) => colour.color
+	);
+	
+	logger.debug(stops);
+	logger.debug(colors);
+
+	// HERE YOU ARE
+	const gradient = tinygradient(stops.map( function(stop, i) {
+	    return {
+		color: colors[i],
+		pos: stop
+	    };
+	}));
+
+	logger.debug(gradient);
+
+
+	const colorRamp = gradient.rgb(255);
+	logger.debug(colorRamp);
+
+	
     }
     
     static async getBbox (z, x, y) {

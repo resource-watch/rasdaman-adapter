@@ -276,11 +276,6 @@ const getBbox = async (ctx, next) => {
     }
 };
 
-const getCoordinates = async (ctx, next) => {
-    logger.debug('Middleware running');
-};
-
-
 router.post('/query/:dataset', deserializeDataset, toSQLMiddleware, allowedOperationsMiddleware, getBbox, RasdamanRouter.query);
 router.get('/layer/:layer/tile/rasdaman/:z/:x/:y', layerMiddleware, datasetMiddleware, RasdamanRouter.getTile);
 // router.post('/download/:dataset', deserializeDataset, queryMiddleware, RasdamanRouter.download);

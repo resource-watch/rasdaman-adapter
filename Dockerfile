@@ -5,7 +5,13 @@ ENV NAME rasdaman-adapter
 ENV USER rasdaman-adapter
 
 RUN apk update && apk upgrade && \
-    apk add --no-cache --update bash git openssh python alpine-sdk
+    apk add --no-cache --update \
+    bash \
+    git \
+    openssh \
+    python \
+    alpine-sdk \
+    imagemagick
 
 RUN addgroup $USER && adduser -s /bin/bash -D -G $USER $USER
 

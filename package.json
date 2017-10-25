@@ -54,6 +54,8 @@
         "jsonpath": "^0.2.11",
         "antlr4": "^4.7.0",
         "mime-types": "^2.1.15",
-	"traverse": "0.6.6"
+	"traverse": "^0.6.6",
+	"tempy": "^0.2.1",
+	"tinygradient": "^0.3.1"
     }
 }
