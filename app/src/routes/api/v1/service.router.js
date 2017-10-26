@@ -98,7 +98,7 @@ class RasdamanRouter {
 
     static async getTile(ctx) {
 	logger.debug('[RasdamanRouter] Obtaining tile');
-	const layerConfig = ctx.request.body.layerConfig;
+	const layerConfig = ctx.request.body.layerConfig; // ctx.state 
 	const tableName = ctx.request.body.tableName;
 	const tile = await TileService.getTile(ctx.params.z, ctx.params.x, ctx.params.y, tableName, layerConfig);
 	ctx.response.type = 'img/png';

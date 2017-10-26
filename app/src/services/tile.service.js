@@ -34,7 +34,7 @@ class TileService {
 	case 'single-band':
 	    logger.debug('Single band raster detected');
 	    // const bounds = layerConfig.bounds.map(parseFloat).sort();
-	    const stops = layerConfig.colorRamp.map((col) => col.value).sort();
+	    const stops = layerConfig.colorRamp.map((col) => parseFloat(col.value)).sort((a, b) => a - b);
 	    logger.debug(stops);
 	    let {0: minBound, [stops.length -1]: maxBound} = stops;
 	    const bounds = [minBound, maxBound];
@@ -70,40 +70,50 @@ class TileService {
     }
     
     static async convert(blackAndWhiteTile, colorRamp, outFileName) {
-	const {stdout, stderr } = await exec(`convert ${blackAndWhiteTile} ${colorRamp} -clut ${outFileName}`);
-	logger.debug(stdout);
-	logger.debug(stderr);
-	return TileService.base64encode(outFileName);
+	try {
+	    const {stdout, stderr } = await exec(`convert ${blackAndWhiteTile} ${colorRamp} -clut ${outFileName}`);
+	    logger.debug(stdout);
+	    logger.debug(stderr);
+	    return TileService.base64encode(outFileName);
+	} catch (err) {
+	    logger.error('Error colorizing query');
+	    throw new Error('Error colorizing query');
+	}
     }
 
     static async tileQuery(query) {
-	logger.debug('Executing rasdaman query for tile');
-	logger.debug(`query: ${query}`);
-	const endpoint = `${config.get('rasdaman.uri')}/rasdaman/ows`;
-	const body = '<?xml version="1.0" encoding="UTF-8" ?>' +
-	      '<ProcessCoveragesRequest xmlns="http://www.opengis.net/wcps/1.0" service="WCPS" version="1.0.0">' +
-	      '<query><abstractSyntax>' +
-	      query +
-	      '</abstractSyntax></query>' +
-	      '</ProcessCoveragesRequest>';
+	try {
+	    logger.debug('Executing rasdaman query for tile');
+	    logger.debug(`query: ${query}`);
+	    const endpoint = `${config.get('rasdaman.uri')}/rasdaman/ows`;
+	    const body = '<?xml version="1.0" encoding="UTF-8" ?>' +
+		'<ProcessCoveragesRequest xmlns="http://www.opengis.net/wcps/1.0" service="WCPS" version="1.0.0">' +
+		'<query><abstractSyntax>' +
+		query +
+		'</abstractSyntax></query>' +
+		'</ProcessCoveragesRequest>';
 
-	const tempFilename = tempy.file({extension: 'png'});
-	logger.debug(`tempFilename: ${tempFilename}`);
-	const request = await rp({
-	    method: 'POST',
-	    url: endpoint,
-	    encoding: null,
-	    headers: {
-		'content-type': 'application/xml'
-	    },
-	    json: false,
-	    body
-	}).then(function (res) {
-	    const buffer = Buffer.from(res, 'utf8');
-	    fs.writeFileSync(tempFilename, buffer);
-	});;
+	    const tempFilename = tempy.file({extension: 'png'});
+	    logger.debug(`tempFilename: ${tempFilename}`);
+	    const request = await rp({
+		method: 'POST',
+		url: endpoint,
+		encoding: null,
+		headers: {
+		    'content-type': 'application/xml'
+		},
+		json: false,
+		body
+	    }).then(function (res) {
+		const buffer = Buffer.from(res, 'utf8');
+		fs.writeFileSync(tempFilename, buffer);
+	    });;
 
-	return tempFilename;
+	    return tempFilename;
+	} catch (err) {
+	    logger.error('Error obtaining query from Rasdaman');
+	    throw new Error('Error obtaining query from Rasdaman');
+	}
     }
 
     static rescale(number, bounds) {
@@ -141,13 +151,13 @@ class TileService {
 	const tempFilename = tempy.file({extension: 'png'});
 	logger.debug(`tempFilename: ${tempFilename}`);
 
-	const fn = await TileService.writeCRPNG(imageData, tempFilename, (x) => x);
+	const fn = await TileService.writeCRPNG(imageData, tempFilename);
 	
 	return fn;
 
     }
 
-    static async writeCRPNG (imageData, tempFilename, callback) {
+    static async writeCRPNG (imageData, tempFilename) {
 	let image = new Jimp(1, 255);
 	imageData.forEach((col, i) => {
 	    image.setPixelColor(col, 1, i);
@@ -187,6 +197,16 @@ class TileService {
 	}
     }
 
+    static negativeNExpr(num) {
+	if (parseFloat(num) > 0) {
+	    return `- ${num}`;
+	} else if (parseFloat(num) < 0) {
+	    return `+ ${Math.abs(num)}`;
+	} else {
+	    return '';
+	}
+    }
+
     static formSingleBandQuery (tableName, slice, bounds) {
 	if (bounds) {
 	    // To rescale a value x with known bounds min and max to the values a and b:
@@ -198,7 +218,7 @@ class TileService {
 	    // In this case, the bounds  a and b will be translated to the  0-255 range. So f(x)...
 	    //
 	    // (255) * (x - bounds[0]) / ( bounds[1] - bounds[0] )
-	    const bounds_expr = `( 255 * ( cov${slice} - ${bounds[0]} )) / ( ${bounds[1]} - ${bounds[0]} )`;
+	    const bounds_expr = `( 255 * ( cov${slice} ${TileService.negativeNExpr(bounds[0])} )) / ( ${bounds[1]} ${TileService.negativeNExpr(bounds[0])} )`;
 	    return `for cov in (${tableName}) return encode(scale(${bounds_expr}, {Lat: "CRS:1"(0:255), Long: "CRS:1"(0:255)}), "PNG")`;
 	} else {
 	    return `for cov in (${tableName}) return encode(scale(cov${slice}, {Lat: "CRS:1"(0:255), Long: "CRS:1"(0:255)}), "PNG")`;

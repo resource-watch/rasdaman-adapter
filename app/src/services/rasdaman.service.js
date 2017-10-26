@@ -145,6 +145,12 @@ class RasdamanService {
 	logger.debug(`bands: ${bands}`);
 	const multiband = bands.length && bands.length > 1 ? true : false;
 	const current_band = fn.arguments[0];
+
+	// Disallow queries to bands not in bands
+	if ( ! bands.includes(current_band)) {
+	    throw new Error('Band not allowed.');
+	}
+	
 	logger.debug(`multiband: ${multiband}`);
 	logger.debug(`current_band: ${current_band}`);
 	const band_subset_expr = multiband ? `.${current_band}` : '';
