@@ -39,7 +39,9 @@ class TileService {
 	    let {0: minBound, [stops.length -1]: maxBound} = stops;
 	    const bounds = [minBound, maxBound];
 	    logger.debug(`layer bounds:  ${bounds}`);
-	    query = TileService.formSingleBandQuery(tableName, slices_expr, bounds);
+	    const band = layerConfig.band;
+	    logger.debug(`band:  ${band}`);
+	    query = TileService.formSingleBandQuery(tableName, slices_expr, bounds, band);
 	    const blackAndWhiteTile = await TileService.tileQuery(query);
 	    logger.debug(`blackAndWhiteTile: ${blackAndWhiteTile}`);
 	    const rampObject = layerConfig.colorRamp;
@@ -62,7 +64,7 @@ class TileService {
 	// logger.debug(`result: ${result}`);
 	return result;
     }
-
+    
     static base64encode(file) {
 	const imageData = fs.readFileSync(file);
 	const b64 = Buffer.from(imageData, 'base64');
@@ -207,7 +209,7 @@ class TileService {
 	}
     }
 
-    static formSingleBandQuery (tableName, slice, bounds) {
+    static formSingleBandQuery (tableName, slice, bounds, band) {
 	if (bounds) {
 	    // To rescale a value x with known bounds min and max to the values a and b:
 	    //
@@ -218,7 +220,8 @@ class TileService {
 	    // In this case, the bounds  a and b will be translated to the  0-255 range. So f(x)...
 	    //
 	    // (255) * (x - bounds[0]) / ( bounds[1] - bounds[0] )
-	    const bounds_expr = `( 255 * ( cov${slice} ${TileService.negativeNExpr(bounds[0])} )) / ( ${bounds[1]} ${TileService.negativeNExpr(bounds[0])} )`;
+	    const bandExpr = band ? `.${band}` : ``;
+	    const bounds_expr = `( 255 * ( (cov${bandExpr})${slice} ${TileService.negativeNExpr(bounds[0])} )) / ( ${bounds[1]} ${TileService.negativeNExpr(bounds[0])} )`;
 	    return `for cov in (${tableName}) return encode(scale(${bounds_expr}, {Lat: "CRS:1"(0:255), Long: "CRS:1"(0:255)}), "PNG")`;
 	} else {
 	    return `for cov in (${tableName}) return encode(scale(cov${slice}, {Lat: "CRS:1"(0:255), Long: "CRS:1"(0:255)}), "PNG")`;
