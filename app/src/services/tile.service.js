@@ -33,8 +33,12 @@ class TileService {
 	switch (tile_type) {
 	case 'single-band':
 	    logger.debug('Single band raster detected');
-	    const bounds = layerConfig.bounds.map(parseFloat).sort();
-	    logger.debug(`bounds: ${bounds}`);
+	    // const bounds = layerConfig.bounds.map(parseFloat).sort();
+	    const stops = layerConfig.colorRamp.map((col) => col.value).sort();
+	    logger.debug(stops);
+	    let {0: minBound, [stops.length -1]: maxBound} = stops;
+	    const bounds = [minBound, maxBound];
+	    logger.debug(`layer bounds:  ${bounds}`);
 	    query = TileService.formSingleBandQuery(tableName, slices_expr, bounds);
 	    const blackAndWhiteTile = await TileService.tileQuery(query);
 	    logger.debug(`blackAndWhiteTile: ${blackAndWhiteTile}`);
