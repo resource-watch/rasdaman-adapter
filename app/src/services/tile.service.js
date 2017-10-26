@@ -31,7 +31,9 @@ class TileService {
 	const tile_type = layerConfig.style;
 	let query, result;
 	switch (tile_type) {
+
 	case 'single-band':
+
 	    logger.debug('Single band raster detected');
 	    // const bounds = layerConfig.bounds.map(parseFloat).sort();
 	    const stops = layerConfig.colorRamp.map((col) => parseFloat(col.value)).sort((a, b) => a - b);
@@ -49,13 +51,21 @@ class TileService {
 	    logger.debug(`colorRamp: ${colorRamp}`);
 	    const outFileName = tempy.file({extension: 'png'});
 	    //const outFileName = '/tmp/' + uniqueString() + '.png';
- 	    logger.debug(`outFileName: ${outFileName}`);
+	    logger.debug(`outFileName: ${outFileName}`);
 	    result = await TileService.convert(blackAndWhiteTile, colorRamp, outFileName);
 	    break;
-	case 'multiband':
+
+	case 'rgb':
+	    logger.debug('RGB raster detected');
+	    query = TileService.formTileQuery(tableName, slices_expr);
+	    const tile = await TileService.tileQuery(query);
+	    result = TileService.base64encode(tile);
 	    break;
+
 	case 'false-color':
+	    
 	    break;
+
 	default:
 	    throw new Error('No style provided in layerConfig. It must be one of <single-band|multiband|false-color>.');
 	    break;
@@ -64,13 +74,13 @@ class TileService {
 	// logger.debug(`result: ${result}`);
 	return result;
     }
-    
+
     static base64encode(file) {
 	const imageData = fs.readFileSync(file);
 	const b64 = Buffer.from(imageData, 'base64');
 	return b64;
     }
-    
+
     static async convert(blackAndWhiteTile, colorRamp, outFileName) {
 	try {
 	    const {stdout, stderr } = await exec(`convert ${blackAndWhiteTile} ${colorRamp} -clut ${outFileName}`);
@@ -149,12 +159,12 @@ class TileService {
 	});
 
 	const imageData = colorMap.map( (a) => Jimp.rgbaToInt(...a));
-	
+
 	const tempFilename = tempy.file({extension: 'png'});
 	logger.debug(`tempFilename: ${tempFilename}`);
 
 	const fn = await TileService.writeCRPNG(imageData, tempFilename);
-	
+
 	return fn;
 
     }
@@ -168,9 +178,9 @@ class TileService {
 
 	logger.debug(`Done`);
 	return tempFilename;
-	
+
     };
-    
+
     static async getBbox (z, x, y) {
 	const bbox = tiles.bbox(x, y, z);
 	return bbox;
@@ -227,6 +237,11 @@ class TileService {
 	    return `for cov in (${tableName}) return encode(scale(cov${slice}, {Lat: "CRS:1"(0:255), Long: "CRS:1"(0:255)}), "PNG")`;
 	}
     }
+
+    static formTileQuery (tableName, slice) {
+	    return `for cov in (${tableName}) return encode(scale(cov${slice}, {Lat: "CRS:1"(0:255), Long: "CRS:1"(0:255)}), "PNG")`;
+    }
+
 }
 
 module.exports = TileService;
