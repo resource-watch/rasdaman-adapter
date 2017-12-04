@@ -83,6 +83,13 @@
                     }
                 }
             ]
-        }
+        },{
+	    "path": "/v1/layer/:layer/tile/rasdaman/:z/:x/:y",
+	    "method": "GET",
+	    "redirect": {
+		"method": "GET",
+		"path": "/api/v1/rasdaman/layer/:layer/tile/rasdaman/:z/:x/:y"
+	    }
+	}
     ]
 }
