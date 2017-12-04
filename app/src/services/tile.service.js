@@ -17,14 +17,15 @@ const tiles = new SphericalMercator({
 });
 
 class TileService {
-    static async getTile(z, x, y, tableName, layerConfig) {
+    static async getTile(z, x, y, tableName, layerConfig, extraAxes) {
 	logger.info('[TileService] Obtaining tile');
 	logger.debug(`tile coordinates: ${z}, ${x}, ${y}`);
 	logger.debug(`tile tableName: ${tableName}`);
 	logger.debug(`tile layerConfig: ${layerConfig}`);
+	logger.debug(`tile extraAxes: ${JSON.stringify(extraAxes)}`);
 	const bbox = await TileService.getBbox(z, x, y);
 	logger.debug(`bbox is: ${bbox}`);
-	const slices_expr = TileService.formSliceExpr(bbox);
+	const slices_expr = TileService.formSliceExpr(bbox, extraAxes);
 	logger.debug(`slices_expr is: ${slices_expr}`);
 	// ^ Remember to consider any extra axes
 	// const extra_slices_expr = TileService.formSliceExpr(bbox, [{'axis': 'ansi', 'value': 1955}]);
@@ -191,9 +192,14 @@ class TileService {
 	    if (extra_slices == null) {
 		return `[Lat(${bbox[1]}:${bbox[3]}),Long(${bbox[0]}:${bbox[2]})]`;
 	    } else {
-		const extra_slices_expr = extra_slices.map(
-		    slice => `,${slice.axis}(${TileService.quoteString(slice.value)})`
-		).join();
+
+		var axes = [];
+		
+		Object.entries(extra_slices).forEach(([k, v]) => {
+		    axes.push(`${k}(${v})`);
+		});
+		logger.debug(`axes: ${axes}`);
+		const extra_slices_expr =  `,` + axes.join(',');
 		return `[Lat(${bbox[1]}:${bbox[3]}),Long(${bbox[0]}:${bbox[2]})${extra_slices_expr}]`;
 	    }
 	} catch (err) {

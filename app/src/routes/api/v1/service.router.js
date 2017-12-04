@@ -100,7 +100,8 @@ class RasdamanRouter {
 	logger.debug('[RasdamanRouter] Obtaining tile');
 	const layerConfig = ctx.request.body.layerConfig; // ctx.state 
 	const tableName = ctx.request.body.tableName;
-	const tile = await TileService.getTile(ctx.params.z, ctx.params.x, ctx.params.y, tableName, layerConfig);
+	const extraAxes = ctx.state.axes;
+	const tile = await TileService.getTile(ctx.params.z, ctx.params.x, ctx.params.y, tableName, layerConfig, extraAxes);
 	ctx.response.type = 'img/png';
 	ctx.response.attachment('tile.png');
 	ctx.body = tile;	
@@ -141,6 +142,15 @@ const layerMiddleware = async(ctx, next) => {
     } catch (err) {
         ctx.throw(err.statusCode, "Layer not found");
     };
+    await next();
+};
+
+const extraAxesMiddleware = async(ctx, next) => {
+    logger.debug('Adding extra axes if needed');
+    var axes = Object.assign({}, ctx.query);
+    delete axes['loggedUser'];
+    logger.debug(`axes: ${JSON.stringify(axes)}`);
+    ctx.state.axes = axes;
     await next();
 };
 
@@ -295,7 +305,7 @@ const getBbox = async (ctx, next) => {
 };
 
 router.post('/query/:dataset', deserializeDataset, toSQLMiddleware, allowedOperationsMiddleware, getBbox, RasdamanRouter.query);
-router.get('/layer/:layer/tile/rasdaman/:z/:x/:y', layerMiddleware, datasetMiddleware, RasdamanRouter.getTile);
+router.get('/layer/:layer/tile/rasdaman/:z/:x/:y', layerMiddleware, datasetMiddleware, extraAxesMiddleware,RasdamanRouter.getTile);
 // router.post('/download/:dataset', deserializeDataset, queryMiddleware, RasdamanRouter.download);
 router.post('/fields/:dataset', deserializeDataset, RasdamanRouter.fields);
 router.post('/rest-datasets/rasdaman', deserializeDataset, RasdamanRouter.registerDataset);
