@@ -2,6 +2,9 @@ const Router = require('koa-router');
 const logger = require('logger');
 const ctRegisterMicroservice = require('ct-register-microservice-node');
 const RasdamanService = require('services/rasdaman.service');
+const TileService = require('services/tile.service');
+const LayerService = require('services/layer.service');
+const DatasetService = require('services/dataset.service');
 const ErrorSerializer = require('serializers/error.serializer');
 const JSONAPIDeserializer = require('jsonapi-serializer').Deserializer;
 
@@ -43,12 +46,13 @@ class RasdamanRouter {
 	const cloneUrl = RasdamanRouter.getCloneUrl(ctx.request.url, ctx.params.dataset);
 	try {
 	    const functions = ctx.state.functions;
+	    logger.debug(`functions: ${functions}`);
 	    const bbox = ctx.state.bbox ? ctx.state.bbox : undefined;
 	    const where = ctx.state.jsonSql.where;
 	    // is
 	    logger.debug(`where: ${JSON.stringify(where)}`);
 	    const response = await RasdamanService.getQuery(dataset.tableName, functions, bbox, where);
-	    logger.info(`Response: `, response);
+	    logger.debug(`Response: `, response);
 	    response.cloneUrl = cloneUrl;
 	    ctx.body = response;
 	} catch (err) {
@@ -92,6 +96,16 @@ class RasdamanRouter {
 	ctx.body = {};
     }
 
+    static async getTile(ctx) {
+	logger.debug('[RasdamanRouter] Obtaining tile');
+	const layerConfig = ctx.request.body.layerConfig; // ctx.state 
+	const tableName = ctx.request.body.tableName;
+	const extraAxes = ctx.state.axes;
+	const tile = await TileService.getTile(ctx.params.z, ctx.params.x, ctx.params.y, tableName, layerConfig, extraAxes);
+	ctx.response.type = 'img/png';
+	ctx.response.attachment('tile.png');
+	ctx.body = tile;	
+    }
 }
 
 const deserializer = (obj) => (new Promise((resolve, reject) => {
@@ -114,6 +128,38 @@ const deserializeDataset = async (ctx, next) => {
 	    ctx.request.body.dataset.tableName = ctx.request.body.dataset.table_name;
 	}
     }
+    await next();
+};
+
+const layerMiddleware = async(ctx, next) => {
+    logger.info(`[RasdmanRouter] Validating layer presence`);
+    try {
+        const layer = await LayerService.checkLayer(ctx);
+	const layerConfig = layer.data.attributes.layerConfig;
+	ctx.request.body.layerConfig = layerConfig;
+	const dataset = layer.data.attributes.dataset;
+	ctx.request.body.dataset = dataset;
+    } catch (err) {
+        ctx.throw(err.statusCode, "Layer not found");
+    };
+    await next();
+};
+
+const extraAxesMiddleware = async(ctx, next) => {
+    logger.debug('Adding extra axes if needed');
+    var axes = Object.assign({}, ctx.query);
+    delete axes['loggedUser'];
+    logger.debug(`axes: ${JSON.stringify(axes)}`);
+    ctx.state.axes = axes;
+    await next();
+};
+
+const datasetMiddleware = async(ctx, next) => {
+    logger.info(`[RasdamanRouter] Obtaining dataset and tablename`);
+    try {
+	const dataset = await DatasetService.checkDataset(ctx);
+	
+    } catch (err) {};
     await next();
 };
 
@@ -185,12 +231,30 @@ const toSQLMiddleware = async (ctx, next) => {
 const allowedOperationsMiddleware = async (ctx, next) => {
     const allowedOperations = ['st_histogram', 'max', 'min', 'avg'];
     const functions = [];
+    logger.debug(`ctx.state: ${JSON.stringify(ctx.state.jsonSql)}`);
     if (ctx.state.jsonSql.select.length > 0) {
 	ctx.state.jsonSql.select.forEach(el => {
 	    if ((el.type === 'function') && (allowedOperations.indexOf(el.value) > -1)) {
 		functions.push({
 		    function: el.value,
+		    alias: el.alias,
 		    arguments: el.arguments.map(ar => ar.value)
+		});
+	    }
+
+	    if (el.type === 'literal') {
+		functions.push({
+		    function: 'temporal_series',
+		    alias: el.alias ? el.alias : el.value,
+		    arguments: [ el.value ]
+		});
+	    }
+
+	    if (el.type === 'wildcard') {
+		functions.push({
+		    function: 'temporal_series',
+		    alias: el.alias ? el.alias : el.value,
+		    arguments: [ '*' ]
 		});
 	    }
 	});
@@ -199,6 +263,7 @@ const allowedOperationsMiddleware = async (ctx, next) => {
 	ctx.throw(400, 'Operation not allowed');
     }
     ctx.state.functions = functions;
+    logger.debug(`functions: ${JSON.stringify(functions)}`);
     await next();
 };
 
@@ -239,10 +304,9 @@ const getBbox = async (ctx, next) => {
     }
 };
 
-
 router.post('/query/:dataset', deserializeDataset, toSQLMiddleware, allowedOperationsMiddleware, getBbox, RasdamanRouter.query);
+router.get('/layer/:layer/tile/rasdaman/:z/:x/:y', layerMiddleware, datasetMiddleware, extraAxesMiddleware,RasdamanRouter.getTile);
 // router.post('/download/:dataset', deserializeDataset, queryMiddleware, RasdamanRouter.download);
 router.post('/fields/:dataset', deserializeDataset, RasdamanRouter.fields);
 router.post('/rest-datasets/rasdaman', deserializeDataset, RasdamanRouter.registerDataset);
-
 module.exports = router;

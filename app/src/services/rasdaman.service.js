@@ -66,7 +66,8 @@ class RasdamanService {
 	    } else if (boundsArray.length == 2) {
 		// If not, there should be two bounds
 		const operators = boundsArray.map(bound => bound.operator).sort();
-		const boundValues = boundsArray.map(bound => parseFloat(bound.value)).sort(function(a,b) { return a - b;});
+		logger.debug(`operators: ${operators}`);
+		const boundValues = boundsArray.map(bound => bound.value).sort(function(a,b) { return a - b;});
 		logger.debug(`boundValues: ${boundValues}`);
 		const validBounds = operators[0] === '<' && operators[1] === '>';
 		if (validBounds) { 
@@ -132,20 +133,30 @@ class RasdamanService {
 	    const whereString = RasdamanService.getWhereString(axis_bounds);
 	    boundsArray.push(whereString);
 	}
-	boundsString = `[${boundsArray.join()}]`;
+	logger.debug(`boundsArray: ${boundsArray}`);
+	boundsString = !(boundsArray === []) ? `[${boundsArray.join()}]` : '';
 	logger.debug(`boundsString: ${boundsString}`);
 	return boundsString;
     }
 
     static async query(tableName, fn, bbox, whereQuery) {
+	logger.debug(`fn: ${JSON.stringify(fn)}`);
 	logger.debug('Forming query');
-	logger.debug('Forming query');
-	logger.debug('Checking number of bands.');
 	const fields = await RasdamanService.getFields(tableName);
+	logger.debug(`fields: ${JSON.stringify(fields)}`);
 	const bands = Object.keys(fields['bands']);
 	logger.debug(`bands: ${bands}`);
 	const multiband = bands.length && bands.length > 1 ? true : false;
-	const current_band = fn.arguments[0];
+	var current_band;
+	current_band = fn.arguments[0];
+
+	logger.debug(`current_band: ${current_band}`);
+
+	// Disallow queries to bands not in bands
+	if ( ! bands.includes(current_band)) {
+	    throw new Error('Band not allowed.');
+	}
+	
 	logger.debug(`multiband: ${multiband}`);
 	logger.debug(`current_band: ${current_band}`);
 	const band_subset_expr = multiband ? `.${current_band}` : '';
@@ -153,6 +164,10 @@ class RasdamanService {
 	// ^ When creating queries for Rasdaman one shouldn't pass along the band name where rasters have one band only
 	let query = `for cov in (${tableName}) return `;
 
+	if (fn.function == 'temporal_series') {
+	    fn.function = '';
+	}
+	
 	if (fn.function !== 'st_histogram') {
 	    logger.debug('No histogram in sight');
 
@@ -163,13 +178,29 @@ class RasdamanService {
 	    }
 	    	    
 	    const result = await RasdamanService.rasdamanQuery(query);
-	    return parseFloat(result);
+	    logger.debug(`result: ${result}`);
+	    const parsedResult = RasdamanService.parseResult(result);
+	    return parsedResult;
 	// st_histogram
 	} else {
 	    logger.debug('Histogram requested');
 	    const result = await RasdamanService.histogramQuery(tableName, bbox, whereQuery, 10, band_subset_expr, current_band);
 	    return result;
 	}
+    }
+
+    static parseResult(result) {
+	var output;
+	if (result[0] === '{') {
+	    logger.debug('Result is array');
+	    output = result.split('},{')
+		.map(row => row.split('}').join('').split('{').join('').split(',')
+		     .map(num => parseFloat(num)));
+	} else {
+	    logger.debug('Result is number');
+	    output = parseFloat(result);
+	}
+	return output;
     }
 
     static async histogramQuery(tableName, bbox, whereQuery, nbins, band_subset_expr, current_band) {
@@ -180,10 +211,12 @@ class RasdamanService {
 	const maxmin_fn = [
 	    {
 		"function": "max",
+		"alias": "max",
 		"arguments": [current_band]
 	    },
 	    {
 		"function": "min",
+		"alias": "min",
 		"arguments": [current_band]
 	    }
 	];
@@ -195,6 +228,9 @@ class RasdamanService {
 	logger.debug(`query_min: ${query_min}`);
 	logger.debug(`type: ${typeof(query_min)}`);
 	// To build the histogram query:
+	whereQuery = !(whereQuery === '[]') ? whereQuery : '';
+	logger.debug(`whereQuery: ${whereQuery}`);
+	
 	const query = `for cov in (${tableName}) return encode( coverage histogram over $bucket x(0:${nbins}) values count (((int)((cov${band_subset_expr})${whereQuery} * ${nbins} / (${query_max - query_min}) )) = $bucket), "CSV")`;
 	logger.debug(`query: ${query}`);
 	const rasdaman_result = await RasdamanService.rasdamanQuery(query);
@@ -237,6 +273,29 @@ class RasdamanService {
 	logger.debug(`request: ${request}`);
 	return request;
     }
+    
+    static async tileQuery(tableName, bbox) {}
+
+    static async expandAsterisk(object, tableName) {
+	if (object.arguments[0] === '*') {
+	    logger.debug('Found wildcard');
+	    const fields = await RasdamanService.getFields(tableName);
+	    const bands = Object.keys(fields['bands']);
+	    logger.debug(`bands: ${bands}`);
+	    var objects = [];
+	    object = bands.map(function(band) {
+		logger.debug(band);
+		objects.push({
+		    'function': 'temporal_series',
+		    'alias': band,
+		    'arguments': [ band ]
+		});		
+	    });
+	    return objects;
+	} else {
+	    return object;
+	}
+    }
 
     static async getQuery(tableName, functions, bbox, where) {
 	logger.debug(`[RasdamanService] Performing query`);
@@ -247,11 +306,21 @@ class RasdamanService {
 	logger.debug(`where: ${JSON.stringify(where)}`);
 	const whereQuery = RasdamanService.getWhere(where, bbox);
 	logger.debug(`Functions are: ${JSON.stringify(functions)}`);
-	for (let i = 0; i < functions.length; i++) {
-	    const query = await RasdamanService.query(tableName, functions[i], bbox, whereQuery);
-	    logger.debug(`query: ${query}`);
-	    fns.push(functions[i].function);
-	    responses.push(query);
+	const newFunctions = await Promise.all(functions.map(fn => RasdamanService.expandAsterisk(fn, tableName)));
+	const newFunctionsFlat = [].concat.apply([], newFunctions);
+	
+	logger.debug(`newFunctions: ${newFunctions.map(JSON.stringify)}`);
+	logger.debug(`newFunctionsFlat: ${newFunctionsFlat}`);
+
+	for (let i = 0; i < newFunctionsFlat.length; i++) {
+	    const queryResult = await RasdamanService.query(tableName, newFunctionsFlat[i], bbox, whereQuery);
+	    logger.debug(`queryResult: ${queryResult}`);
+	    const alias = newFunctionsFlat[i].alias ? newFunctionsFlat[i].alias : undefined;
+	    const funcName = alias ? alias : `${newFunctionsFlat[i].function}(${newFunctionsFlat[i].arguments.join()})`;
+	    
+	    logger.debug(`funcName: ${funcName}`);
+	    fns.push(funcName);
+	    responses.push(queryResult);
 	}
 	// Provisional?
 	var response = {};
