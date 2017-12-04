@@ -66,7 +66,8 @@ class RasdamanService {
 	    } else if (boundsArray.length == 2) {
 		// If not, there should be two bounds
 		const operators = boundsArray.map(bound => bound.operator).sort();
-		const boundValues = boundsArray.map(bound => parseFloat(bound.value)).sort(function(a,b) { return a - b;});
+		logger.debug(`operators: ${operators}`);
+		const boundValues = boundsArray.map(bound => bound.value).sort(function(a,b) { return a - b;});
 		logger.debug(`boundValues: ${boundValues}`);
 		const validBounds = operators[0] === '<' && operators[1] === '>';
 		if (validBounds) { 
@@ -139,12 +140,17 @@ class RasdamanService {
     }
 
     static async query(tableName, fn, bbox, whereQuery) {
+	logger.debug(`fn: ${JSON.stringify(fn)}`);
 	logger.debug('Forming query');
 	const fields = await RasdamanService.getFields(tableName);
+	logger.debug(`fields: ${JSON.stringify(fields)}`);
 	const bands = Object.keys(fields['bands']);
 	logger.debug(`bands: ${bands}`);
 	const multiband = bands.length && bands.length > 1 ? true : false;
-	const current_band = fn.arguments[0];
+	var current_band;
+	current_band = fn.arguments[0];
+
+	logger.debug(`current_band: ${current_band}`);
 
 	// Disallow queries to bands not in bands
 	if ( ! bands.includes(current_band)) {
@@ -157,6 +163,11 @@ class RasdamanService {
 	logger.debug(`band_subset_expr: ${band_subset_expr}`);
 	// ^ When creating queries for Rasdaman one shouldn't pass along the band name where rasters have one band only
 	let query = `for cov in (${tableName}) return `;
+
+	if (fn.function == 'temporal_series') {
+	    fn.function = '';
+	}
+	
 	if (fn.function !== 'st_histogram') {
 	    logger.debug('No histogram in sight');
 
@@ -167,13 +178,29 @@ class RasdamanService {
 	    }
 	    	    
 	    const result = await RasdamanService.rasdamanQuery(query);
-	    return parseFloat(result);
+	    logger.debug(`result: ${result}`);
+	    const parsedResult = RasdamanService.parseResult(result);
+	    return parsedResult;
 	// st_histogram
 	} else {
 	    logger.debug('Histogram requested');
 	    const result = await RasdamanService.histogramQuery(tableName, bbox, whereQuery, 10, band_subset_expr, current_band);
 	    return result;
 	}
+    }
+
+    static parseResult(result) {
+	var output;
+	if (result[0] === '{') {
+	    logger.debug('Result is array');
+	    output = result.split('},{')
+		.map(row => row.split('}').join('').split('{').join('').split(',')
+		     .map(num => parseFloat(num)));
+	} else {
+	    logger.debug('Result is number');
+	    output = parseFloat(result);
+	}
+	return output;
     }
 
     static async histogramQuery(tableName, bbox, whereQuery, nbins, band_subset_expr, current_band) {
@@ -249,6 +276,27 @@ class RasdamanService {
     
     static async tileQuery(tableName, bbox) {}
 
+    static async expandAsterisk(object, tableName) {
+	if (object.arguments[0] === '*') {
+	    logger.debug('Found wildcard');
+	    const fields = await RasdamanService.getFields(tableName);
+	    const bands = Object.keys(fields['bands']);
+	    logger.debug(`bands: ${bands}`);
+	    var objects = [];
+	    object = bands.map(function(band) {
+		logger.debug(band);
+		objects.push({
+		    'function': 'temporal_series',
+		    'alias': band,
+		    'arguments': [ band ]
+		});		
+	    });
+	    return objects;
+	} else {
+	    return object;
+	}
+    }
+
     static async getQuery(tableName, functions, bbox, where) {
 	logger.debug(`[RasdamanService] Performing query`);
 	const endpoint = `${config.get('rasdaman.uri')}/rasdaman/ows`;
@@ -258,11 +306,17 @@ class RasdamanService {
 	logger.debug(`where: ${JSON.stringify(where)}`);
 	const whereQuery = RasdamanService.getWhere(where, bbox);
 	logger.debug(`Functions are: ${JSON.stringify(functions)}`);
-	for (let i = 0; i < functions.length; i++) {
-	    const queryResult = await RasdamanService.query(tableName, functions[i], bbox, whereQuery);
+	const newFunctions = await Promise.all(functions.map(fn => RasdamanService.expandAsterisk(fn, tableName)));
+	const newFunctionsFlat = [].concat.apply([], newFunctions);
+	
+	logger.debug(`newFunctions: ${newFunctions.map(JSON.stringify)}`);
+	logger.debug(`newFunctionsFlat: ${newFunctionsFlat}`);
+
+	for (let i = 0; i < newFunctionsFlat.length; i++) {
+	    const queryResult = await RasdamanService.query(tableName, newFunctionsFlat[i], bbox, whereQuery);
 	    logger.debug(`queryResult: ${queryResult}`);
-	    const alias = functions[i].alias ? functions[i].alias : undefined;
-	    const funcName = alias ? alias : `${functions[i].function}(${functions[i].arguments.join()})`;
+	    const alias = newFunctionsFlat[i].alias ? newFunctionsFlat[i].alias : undefined;
+	    const funcName = alias ? alias : `${newFunctionsFlat[i].function}(${newFunctionsFlat[i].arguments.join()})`;
 	    
 	    logger.debug(`funcName: ${funcName}`);
 	    fns.push(funcName);

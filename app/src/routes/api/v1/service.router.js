@@ -221,6 +221,7 @@ const toSQLMiddleware = async (ctx, next) => {
 const allowedOperationsMiddleware = async (ctx, next) => {
     const allowedOperations = ['st_histogram', 'max', 'min', 'avg'];
     const functions = [];
+    logger.debug(`ctx.state: ${JSON.stringify(ctx.state.jsonSql)}`);
     if (ctx.state.jsonSql.select.length > 0) {
 	ctx.state.jsonSql.select.forEach(el => {
 	    if ((el.type === 'function') && (allowedOperations.indexOf(el.value) > -1)) {
@@ -230,12 +231,29 @@ const allowedOperationsMiddleware = async (ctx, next) => {
 		    arguments: el.arguments.map(ar => ar.value)
 		});
 	    }
+
+	    if (el.type === 'literal') {
+		functions.push({
+		    function: 'temporal_series',
+		    alias: el.alias ? el.alias : el.value,
+		    arguments: [ el.value ]
+		});
+	    }
+
+	    if (el.type === 'wildcard') {
+		functions.push({
+		    function: 'temporal_series',
+		    alias: el.alias ? el.alias : el.value,
+		    arguments: [ '*' ]
+		});
+	    }
 	});
     }
     if (functions.length === 0) {
 	ctx.throw(400, 'Operation not allowed');
     }
     ctx.state.functions = functions;
+    logger.debug(`functions: ${JSON.stringify(functions)}`);
     await next();
 };
 
