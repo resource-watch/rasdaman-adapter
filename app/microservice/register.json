@@ -1,5 +1,7 @@
 {
     "name": "rasdaman-adapter",
+    "cache": ["query-rasdaman"],
+    "uncache": ["query-rasdaman"],
     "endpoints": [
         {
             "path": "/v1/rest-datasets/rasdaman",
